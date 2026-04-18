@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Concepts | multiagentsecurity.ai{% endblock %}
+
+{% block body %}
+  <main class="page-shell">
+    <section class="hero hero-page">
+      <div class="hero-copy">
+        <p class="eyebrow">Concepts</p>
+        <h1>Build a shared vocabulary for the field.</h1>
+        <p class="lede">
+          The concepts section is a glossary and explainer layer for practitioners, researchers, and decision-makers
+          trying to reason clearly about multi-agent security.
+        </p>
+      </div>
+    </section>
+
+    <section class="content-grid">
+      {% for article in concept_articles %}
+        <article class="content-card">
+          <p class="card-tag">Concept article</p>
+          <h3><a href="/concepts/{{ article.slug }}">{{ article.title }}</a></h3>
+          <p>{{ article.summary }}</p>
+        </article>
+      {% endfor %}
+    </section>
+  </main>
+{% endblock %}

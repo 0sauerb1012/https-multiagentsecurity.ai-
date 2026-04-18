@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Experiments / Demos | multiagentsecurity.ai{% endblock %}
+
+{% block body %}
+  <main class="page-shell">
+    <section class="hero hero-page">
+      <div class="hero-copy">
+        <p class="eyebrow">Experiments / demos</p>
+        <h1>Reserve space for prototypes and simulations.</h1>
+        <p class="lede">
+          This section is for future runnable experiments, attack simulations, trust models, and operator-facing demos.
+        </p>
+      </div>
+    </section>
+
+    <section class="content-grid">
+      {% for item in experiments %}
+        <article class="content-card">
+          <p class="card-tag">Prototype</p>
+          <h3>{{ item.title }}</h3>
+          <p>{{ item.description }}</p>
+        </article>
+      {% endfor %}
+    </section>
+  </main>
+{% endblock %}

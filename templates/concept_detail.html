@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}{{ article.title }} | Concepts{% endblock %}
+
+{% block body %}
+  <main class="page-shell article-shell">
+    <article class="article-card">
+      <p class="eyebrow">Concept explainer</p>
+      <h1>{{ article.title }}</h1>
+      <p class="lede">{{ article.summary }}</p>
+      <div class="article-body">
+        <p>
+          This template is ready for fuller explainers, diagrams, citations, and links to relevant research papers.
+          It gives the hub a dedicated surface for foundational ideas that should not be buried in a moving paper feed.
+        </p>
+        <p>
+          As the site matures, concept pages can become canonical references that connect theory, practical controls,
+          and representative literature in one place.
+        </p>
+      </div>
+    </article>
+  </main>
+{% endblock %}

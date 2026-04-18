@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Research Library | multiagentsecurity.ai{% endblock %}
+
+{% block body %}
+  <main class="page-shell">
+    <section class="hero hero-page">
+      <div class="hero-copy">
+        <p class="eyebrow">Research library</p>
+        <h1>Curate the field by topic, not just recency.</h1>
+        <p class="lede">
+          This section is the long-lived knowledge layer for important papers, organizing the multi-agent
+          security literature into durable subareas that can support reading lists, annotated references,
+          and future topic pages.
+        </p>
+      </div>
+    </section>
+
+    <section class="section-block">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Topic groupings</p>
+          <h2>First-pass library taxonomy</h2>
+        </div>
+        <p class="section-copy">
+          These groupings are placeholders for future curated paper sets, annotated resources, and topic landing pages.
+        </p>
+      </div>
+      <div class="content-grid">
+        {% for topic in library_topics %}
+          <article class="content-card">
+            <p class="card-tag">Library topic</p>
+            <h3>{{ topic.title }}</h3>
+            <p>{{ topic.description }}</p>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  </main>
+{% endblock %}

@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}multiagentsecurity.ai{% endblock %}
+
+{% block body %}
+  <main class="page-shell">
+    <section class="hero hero-home hero-homepage">
+      <div class="hero-copy">
+        <p class="eyebrow">A living intelligence hub for an emerging field</p>
+        <h1>Track multi-agent security as a research domain.</h1>
+        <p class="lede">
+          This site is a focused hub for multi-agent security: a place to follow current research, map core
+          concepts, surface underexplored areas, and publish analysis on how agentic systems change the
+          security landscape.
+        </p>
+        <div class="hero-actions">
+          <a class="button-primary" href="/research-feed">Explore research feed</a>
+          <a class="button-secondary" href="/research-gaps">View research gaps</a>
+        </div>
+      </div>
+
+      <div class="hero-stack">
+        <article class="hero-panel hero-signal-panel">
+          <p class="panel-eyebrow">What this site is</p>
+          <h2>More than a blog.</h2>
+          <p>
+            It is a research and intelligence surface for papers, concepts, tools, writing, and the open gaps
+            that still define multi-agent security as a young field.
+          </p>
+        </article>
+
+        <article class="hero-panel hero-signal-panel">
+          <p class="panel-eyebrow">What users can do here</p>
+          <ul class="bullet-list">
+            <li>Track current papers across multiple scholarly feeds.</li>
+            <li>Find the important concepts and threat-model vocabulary.</li>
+            <li>See where the field is crowded and where it is still thin.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section-block section-why">
+      <div class="section-heading section-heading-tight">
+        <div>
+          <p class="eyebrow">Why this site exists</p>
+          <h2>Multi-agent security is expanding faster than its research map.</h2>
+        </div>
+      </div>
+      <div class="why-grid">
+        <p class="section-copy">
+          Important work is showing up across papers, preprints, benchmarks, vendor posts, talks, and practical
+          security conversations. The problem is not just volume. It is fragmentation.
+        </p>
+        <p class="section-copy">
+          This site exists to centralize the field: research intake, durable concepts, current gaps, and original
+          analysis in one place so the domain becomes easier to follow, critique, and extend.
+        </p>
+      </div>
+    </section>
+
+    <section class="section-block">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Navigate the hub</p>
+          <h2>Major sections</h2>
+        </div>
+        <p class="section-copy">
+          The homepage should guide you into the part of the site that matches what you need right now:
+          live intake, structured reading, intelligence, or original analysis.
+        </p>
+      </div>
+
+      <div class="feature-grid">
+        {% for feature in home_features %}
+          <a class="feature-card" href="{{ feature.href }}">
+            <span class="feature-eyebrow">{{ feature.eyebrow }}</span>
+            <h3>{{ feature.title }}</h3>
+            <p>{{ feature.description }}</p>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="section-block section-split section-preview-split">
+      <div class="stack-card stack-card-strong">
+        <div class="section-heading section-heading-tight">
+          <div>
+            <p class="eyebrow">Research preview</p>
+            <h2>Current research signals</h2>
+          </div>
+          <a class="inline-link" href="/research-feed">View all research</a>
+        </div>
+
+        <div class="compact-list compact-list-tight">
+          {% for item in research_preview %}
+            <article class="preview-row">
+              <p class="item-meta">{{ item.meta }}</p>
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.summary }}</p>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="stack-card stack-card-strong stack-card-intel">
+        <div class="section-heading section-heading-tight">
+          <div>
+            <p class="eyebrow">Research gaps / intelligence</p>
+            <h2>See where the field is concentrated and where it still needs work.</h2>
+          </div>
+          <a class="inline-link" href="/research-gaps">Open gap analysis</a>
+        </div>
+
+        <div class="intel-preview">
+          <div class="intel-visual">
+            <span class="intel-band intel-band-high"></span>
+            <span class="intel-band intel-band-mid"></span>
+            <span class="intel-band intel-band-low"></span>
+          </div>
+
+          <div class="intel-stats">
+            {% for item in gap_preview %}
+              <article class="intel-stat">
+                <span class="intel-label">{{ item.label }}</span>
+                <p>{{ item.value }}</p>
+              </article>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-block section-split">
+      <div class="stack-card">
+        <div class="section-heading section-heading-tight">
+          <div>
+            <p class="eyebrow">Recent writing</p>
+            <h2>Original analysis and commentary</h2>
+          </div>
+          <a class="inline-link" href="/blog">Read the blog</a>
+        </div>
+
+        <div class="compact-list compact-list-tight">
+          {% for post in featured_posts %}
+            <article class="compact-item">
+              <p class="item-meta">{{ post.date }}</p>
+              <h3><a href="/blog/{{ post.slug }}">{{ post.title }}</a></h3>
+              <p>{{ post.summary }}</p>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="stack-card">
+        <div class="section-heading section-heading-tight">
+          <div>
+            <p class="eyebrow">Concepts / knowledge base</p>
+            <h2>Make the field easier to understand without oversimplifying it.</h2>
+          </div>
+          <a class="inline-link" href="/concepts">Explore concepts</a>
+        </div>
+
+        <div class="compact-list compact-list-tight">
+          {% for article in concept_preview %}
+            <article class="compact-item">
+              <h3><a href="/concepts/{{ article.slug }}">{{ article.title }}</a></h3>
+              <p>{{ article.summary }}</p>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="credibility-strip">
+      <div>
+        <p class="eyebrow">Independent research direction</p>
+        <h2>Tracking papers, concepts, gaps, experiments, and practical security questions around agentic systems.</h2>
+      </div>
+      <p class="section-copy">
+        The long-term goal is a credible domain platform for multi-agent security: useful to researchers,
+        useful to practitioners, and useful to anyone trying to understand where the field is actually moving.
+      </p>
+    </section>
+  </main>
+{% endblock %}

@@ -1,0 +1,88 @@
+{% if error %}
+  <section class="message message-error">
+    <p>{{ error }}</p>
+  </section>
+{% endif %}
+
+{% if feed_label %}
+  <section class="summary-grid">
+    <article class="summary-card">
+      <p class="card-tag">Merged feed</p>
+      <h3>{{ feed_label }}</h3>
+      <p>Broad collection flows into a multi-agent security review layer before papers appear in the feed.</p>
+    </article>
+    <article class="summary-card">
+      <p class="card-tag">Recent summaries</p>
+      <h3>{{ cards | length }} papers in this snapshot</h3>
+      <p>Each item includes source metadata, bullet summaries, and category mapping for fast triage.</p>
+    </article>
+    <article class="summary-card">
+      <p class="card-tag">Future visualization</p>
+      <h3>Graph and trend entry point</h3>
+      <p>Research visualization modules will attach here once topic trends and gap scoring mature.</p>
+    </article>
+  </section>
+{% endif %}
+
+{% if tracked_topics %}
+  <section class="message message-subtle">
+    <p><strong>Collection scope:</strong> {{ tracked_topics | join(", ") }}</p>
+  </section>
+{% endif %}
+
+{% if cards %}
+  <section class="results">
+    {% for card in cards %}
+      <article class="paper-card">
+        <div class="paper-header">
+          <div>
+            <h2>{{ card.paper.title }}</h2>
+            <div class="pill-row">
+              <span class="pill pill-source">{{ card.paper.source_name }}</span>
+              <span class="pill pill-type">{{ card.paper.source_type }}</span>
+              {% if card.paper.merged_from_sources %}
+                {% for source in card.paper.merged_from_sources %}
+                  <span class="pill pill-merged">{{ source }}</span>
+                {% endfor %}
+              {% endif %}
+              {% for category in card.paper.hub_categories %}
+                <span class="pill pill-category">{{ category }}</span>
+              {% endfor %}
+            </div>
+            <p class="meta">{{ card.paper.authors | join(", ") if card.paper.authors else "Unknown authors" }}</p>
+            <p class="meta">Published {{ card.paper.published[:10] if card.paper.published else "Unknown date" }}</p>
+            {% if card.paper.venue %}
+              <p class="meta"><strong>Venue:</strong> {{ card.paper.venue }}</p>
+            {% endif %}
+            {% if card.paper.doi %}
+              <p class="meta"><strong>DOI:</strong> {{ card.paper.doi }}</p>
+            {% endif %}
+            {% if card.paper.reviewer_notes %}
+              <p class="meta"><strong>Reviewer:</strong> {{ card.paper.reviewer_notes }}</p>
+            {% endif %}
+          </div>
+          <a class="paper-link" href="{{ card.paper.paper_url }}" target="_blank" rel="noreferrer">Open source record</a>
+        </div>
+
+        <div class="paper-body">
+          <div class="paper-section">
+            <h3>Abstract</h3>
+            <p>{{ card.paper.summary }}</p>
+          </div>
+          <div class="paper-section">
+            <h3>Bullet summary</h3>
+            <ul>
+              {% for bullet in card.bullets %}
+                <li>{{ bullet }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </article>
+    {% endfor %}
+  </section>
+{% else %}
+  <section class="message">
+    <p>No papers were returned for the tracked feed.</p>
+  </section>
+{% endif %}

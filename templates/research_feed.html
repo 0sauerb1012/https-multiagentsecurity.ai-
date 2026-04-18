@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Research Feed | multiagentsecurity.ai{% endblock %}
+
+{% block body %}
+  <main class="page-shell">
+    <section class="hero hero-page">
+      <div class="hero-copy">
+        <p class="eyebrow">Research feed</p>
+        <h1>Live multi-agent security intake.</h1>
+        <p class="lede">
+          The feed merges current papers from multiple scholarly sources, deduplicates them, runs first-pass
+          multi-agent security filtering, and renders source-aware summaries for rapid review.
+        </p>
+      </div>
+      <div class="hero-panel">
+        <p class="panel-eyebrow">Roadmap hooks</p>
+        <ul class="bullet-list">
+          <li>Live paper ingestion and canonical record merging.</li>
+          <li>Topic, date, and source filtering placeholders for future interaction.</li>
+          <li>Research visualization entry point for future graph or trend views.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="control-panel">
+      <div class="control-card">
+        <span class="control-heading">Active feeds</span>
+        <p>{{ active_source_feeds | join(", ") }}</p>
+      </div>
+      <div class="control-card">
+        <span class="control-heading">Broad collection</span>
+        <p>{{ topics | map(attribute='label') | join(", ") }}</p>
+      </div>
+      <div class="control-card">
+        <span class="control-heading">Future controls</span>
+        <p>Source filters, topic tags, date windows, and visualization pivots will sit in this surface.</p>
+      </div>
+      <form method="post" action="/fetch" class="controls" id="feed-form">
+        <div class="field field-small">
+          <label for="limit">Feed size</label>
+          <input id="limit" name="limit" type="number" min="1" max="20" value="{{ limit }}" />
+        </div>
+        <button type="submit" id="refresh-button">Refresh latest papers</button>
+      </form>
+    </section>
+
+    <section class="message loading-state" id="feed-status">
+      <p id="feed-status-text">Loading the current multi-agent security feed...</p>
+    </section>
+
+    <div id="feed-results" data-feed-endpoint="/feed">
+      {% if cards is defined %}
+        {% include "_feed_content.html" %}
+      {% endif %}
+    </div>
+  </main>
+{% endblock %}

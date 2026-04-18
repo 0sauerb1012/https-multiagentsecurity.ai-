@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Research Gaps | multiagentsecurity.ai{% endblock %}
+
+{% block body %}
+  <main class="page-shell">
+    <section class="hero hero-page">
+      <div class="hero-copy">
+        <p class="eyebrow">Research gaps</p>
+        <h1>Understand density, trends, and thin areas.</h1>
+        <p class="lede">
+          This page is the research-intelligence layer: where the site can eventually expose topic concentration,
+          trend analysis, and underexplored parts of the multi-agent security landscape.
+        </p>
+      </div>
+      <div class="hero-panel">
+        <p class="panel-eyebrow">Future chart slots</p>
+        <ul class="bullet-list">
+          <li>Topic concentration graph and timeline modules.</li>
+          <li>Gap scoring, source diversity, and recency signals.</li>
+          <li>Entry points into area-specific paper lists and downstream experiments.</li>
+        </ul>
+      </div>
+    </section>
+
+    {% if error %}
+      <section class="message message-error">
+        <p>{{ error }}</p>
+      </section>
+    {% endif %}
+
+    {% if heatmap_rows %}
+      <section class="insights-slab">
+        <div class="insight-card">
+          <span class="insight-heading">Most researched</span>
+          <p>{{ concentration_labels | join(", ") if concentration_labels else "No strong concentration clusters yet." }}</p>
+        </div>
+        <div class="insight-card">
+          <span class="insight-heading">Needs more coverage</span>
+          <p>{{ gap_labels | join(", ") if gap_labels else "No obvious gaps in the current snapshot." }}</p>
+        </div>
+        <div class="insight-card">
+          <span class="insight-heading">Chart modules</span>
+          <p>Placeholders are ready for trend lines, gap scoring, and concentration visualizations as the data layer matures.</p>
+        </div>
+      </section>
+
+      <section class="table-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Coverage view</p>
+            <h2>Current subarea concentration</h2>
+          </div>
+          <p class="section-copy">
+            Click a row to open the papers currently mapped into that multi-agent security area.
+          </p>
+        </div>
+
+        <div class="coverage-table-shell">
+          <table class="coverage-table">
+            <thead>
+              <tr>
+                <th>Area</th>
+                <th>Papers</th>
+                <th>Status</th>
+                <th>Coverage note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in heatmap_rows %}
+                <tr class="coverage-row" onclick="window.location='/areas/{{ row.slug }}'">
+                  <td><a class="coverage-link" href="/areas/{{ row.slug }}">{{ row.category }}</a></td>
+                  <td>
+                    <span class="coverage-count {% if row.status == 'High concentration' %}coverage-count-high{% elif row.status == 'Gap / underexplored' %}coverage-count-low{% else %}coverage-count-mid{% endif %}">
+                      {{ row.count }}
+                    </span>
+                  </td>
+                  <td>{{ row.status }}</td>
+                  <td>
+                    {% if row.status == "High concentration" %}
+                      Dense current research activity relative to the rest of the tracked landscape.
+                    {% elif row.status == "Gap / underexplored" %}
+                      Thin current coverage and a good candidate for deliberate exploration.
+                    {% else %}
+                      Active enough to matter, but still open for stronger synthesis and coverage.
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endif %}
+  </main>
+{% endblock %}

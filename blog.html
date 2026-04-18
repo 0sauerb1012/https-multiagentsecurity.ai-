@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>blog | multi-agent security</title>
+  <meta name="description" content="Blog posts on multi-agent security research and experiments." />
+  <link rel="stylesheet" href="styles.css?v=20260307" />
+</head>
+<body>
+  <div class="scanline" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <div class="brand">
+      <p class="kicker">MAS</p>
+      <h1>multi-agent security</h1>
+    </div>
+    <nav class="nav">
+      <a href="index.html">/home</a>
+      <a href="about.html">/about</a>
+      <a href="blog.html">/blog</a>
+      <a href="reading.html">/reading</a>
+      <a href="contact.html">/contact</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="eyebrow">multi-agent security writing</p>
+      <h2>Blog</h2>
+      <p class="lead">Posts, notes, and research updates.</p>
+    </section>
+
+    <section class="section">
+      <h3>/posts</h3>
+      <div class="posts">
+        <article class="post-card">
+          <p class="post-meta">2026-03-07</p>
+          <h4 class="post-title">A Tiny Multi-Agent Experiment That Explains Multi-Agent Systems</h4>
+          <p class="post-excerpt">
+            <strong>Framework used</strong>
+          </p>
+          <ul class="list">
+            <li>Lightweight Python + LangChain setup</li>
+            <li>langchain-openai with a shared ChatOpenAI model (gpt-4o-mini)</li>
+            <li>Role-specific system prompts for each agent</li>
+            <li>A simple coordinator in app.py to run the pipeline</li>
+            <li>Repository: <a class="post-link" href="https://github.com/0sauerb1012/simplemultiagentsystem" target="_blank" rel="noopener noreferrer">simplemultiagentsystem</a></li>
+          </ul>
+          <p class="post-excerpt">
+            <strong>The system architecture</strong><br />
+            The system runs as a simple sequential pipeline:
+          </p>
+          <div class="flow-diagram" aria-label="Multi-agent pipeline diagram">
+            <p class="flow-caption">Pipeline Execution Graph</p>
+            <div class="flow-steps">
+              <div class="flow-step">
+                <span class="flow-step-num">S1</span>
+                <div class="flow-step-body">
+                  <p class="flow-step-text">Input: User Question</p>
+                  <p class="flow-step-meta">artifact: raw query</p>
+                </div>
+              </div>
+              <div class="flow-step">
+                <span class="flow-step-num">S2</span>
+                <div class="flow-step-body">
+                  <p class="flow-step-text">Research Agent</p>
+                  <p class="flow-step-meta">artifact: concise notes</p>
+                </div>
+              </div>
+              <div class="flow-step">
+                <span class="flow-step-num">S3</span>
+                <div class="flow-step-body">
+                  <p class="flow-step-text">Writer Agent (Draft)</p>
+                  <p class="flow-step-meta">artifact: initial explanation</p>
+                </div>
+              </div>
+              <div class="flow-step">
+                <span class="flow-step-num">S4</span>
+                <div class="flow-step-body">
+                  <p class="flow-step-text">Editor Agent</p>
+                  <p class="flow-step-meta">artifact: critique + revision requests</p>
+                </div>
+              </div>
+              <div class="flow-step">
+                <span class="flow-step-num">S5</span>
+                <div class="flow-step-body">
+                  <p class="flow-step-text">Writer Agent (Revision)</p>
+                  <p class="flow-step-meta">artifact: improved explanation</p>
+                </div>
+              </div>
+              <div class="flow-step">
+                <span class="flow-step-num">S6</span>
+                <div class="flow-step-body">
+                  <p class="flow-step-text">Coordinator</p>
+                  <p class="flow-step-meta">artifact: final answer</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="post-excerpt">The Coordinator manages the workflow by:</p>
+          <ul class="list">
+            <li>Passing outputs between agents</li>
+            <li>Controlling execution order</li>
+            <li>Printing the final results</li>
+          </ul>
+          <p class="post-excerpt">
+            This keeps each agent simple, while the pipeline stays clear and easy to follow.
+          </p>
+          <p class="post-excerpt">
+            <strong>Why multi-agent systems matter</strong><br />
+            Single-agent AI can do a lot: answer questions, summarize, and write code. But when a task gets more complex,
+            it often helps to split the work up.
+          </p>
+          <p class="post-excerpt">
+            That is the core idea behind multi-agent systems: instead of one "do everything" prompt, you assign roles.
+            Each role focuses on one part of the problem, and the pieces are combined into a better final result.
+          </p>
+          <p class="post-excerpt">
+            In this post, we walk through a small, runnable-style experiment that shows how a simple group of agents can
+            collaborate to create a clearer explanation than a single prompt alone.
+          </p>
+          <p class="post-excerpt">
+            This is the first post in a series. I will start here, build out a simple multi-agent system, and slowly add
+            capabilities to make it more robust. Along the way I will introduce security considerations. The goal is both
+            personal experimentation and a ride along for those interested in multi-agent systems and security.
+          </p>
+          <p class="post-excerpt">
+            <strong>What is a multi-agent system?</strong><br />
+            A multi-agent system (MAS) is an AI setup where multiple agents collaborate to solve a problem.
+          </p>
+          <ul class="list">
+            <li>A specific role</li>
+            <li>A focused responsibility</li>
+            <li>A clear handoff to the next agent</li>
+          </ul>
+          <p class="post-excerpt">
+            Instead of one model trying to do everything at once, work is distributed across specialized roles.
+            A quick analogy is a content team:
+          </p>
+          <ul class="list">
+            <li>Researcher: gathers facts</li>
+            <li>Writer: produces a draft</li>
+            <li>Editor: reviews and improves it</li>
+          </ul>
+          <p class="post-excerpt">
+            A multi-agent system works the same way, only the team members are agents.
+          </p>
+          <p class="post-excerpt">
+            <strong>The goal of this experiment</strong><br />
+            Use a small multi-agent system to answer one question: "What is a multi-agent system?"
+          </p>
+          <p class="post-excerpt">To keep it educational and focused, the experiment uses these constraints:</p>
+          <ul class="list">
+            <li>Minimal architecture</li>
+            <li>The same LLM powers all agents</li>
+            <li>No tools</li>
+            <li>No memory</li>
+            <li>No RAG</li>
+            <li>No web search</li>
+          </ul>
+          <p class="post-excerpt">This isolates the real lesson: orchestration plus role specialization.</p>
+          <p class="post-excerpt">
+            <strong>Agent roles (what each one does)</strong>
+          </p>
+          <ul class="list">
+            <li>Research Agent: produces concise bullet notes about the question to give the writer useful context</li>
+            <li>Writer Agent: turns notes into a readable explanation (draft, then revision based on editor feedback)</li>
+            <li>Editor Agent: reviews the draft and suggests improvements; critiques only and does not rewrite</li>
+            <li>Coordinator: orchestrates the process and ensures execution order, visibility, and logging</li>
+          </ul>
+          <p class="post-excerpt">
+            <strong>Making collaboration visible</strong><br />
+            To make teamwork easy to understand, the program prints each stage:
+          </p>
+          <ul class="list">
+            <li>USER QUESTION</li>
+            <li>RESEARCH NOTES</li>
+            <li>DRAFT EXPLANATION</li>
+            <li>EDITOR FEEDBACK</li>
+            <li>REVISED EXPLANATION</li>
+            <li>FINAL ANSWER</li>
+          </ul>
+          <p class="post-excerpt">
+            This turns the system into a learning tool. Instead of a black box, you can watch the explanation improve
+            step-by-step.
+          </p>
+          <p class="post-excerpt">
+            <strong>Logging and traceability</strong><br />
+            The experiment produces two helpful logs:
+          </p>
+          <ul class="list">
+            <li>Detailed interaction log (.log): prompts, agent responses, and handoff messages</li>
+            <li>Execution trace (_trace.md): a clean, step-by-step record of the pipeline</li>
+          </ul>
+          <p class="post-excerpt">
+            Useful for debugging, inspecting behavior, and visualizing how information moves through the system.
+          </p>
+          <p class="post-excerpt">
+            <strong>Lessons from the experiment</strong>
+          </p>
+          <ul class="list">
+            <li>Specialization improves clarity: roles create more structured output</li>
+            <li>Review loops improve quality: editor to writer revision boosts the final explanation</li>
+            <li>Multi-agent value shows up fast: benefits appear without complicated infrastructure</li>
+          </ul>
+          <p class="post-excerpt">
+            <strong>Closing thoughts</strong><br />
+            Multi-agent systems are not about making AI more complicated. They are about structured collaboration.
+            Even a small pipeline like this demonstrates the key advantage: divide the work, specialize roles, and improve
+            results through review.
+          </p>
+          <p class="post-excerpt">
+            If you want to try it yourself, modify the code and ask new questions. You may be surprised how far a simple
+            agent workflow can go.
+          </p>
+        </article>
+
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p class="links">
+      <a href="https://github.com/0sauerb1012">github</a>
+      <span>·</span>
+      <a href="https://www.linkedin.com/in/benjamin-sauers">linkedin</a>
+    </p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,22 @@
+[
+  {
+    "slug": "planner-executor",
+    "label": "Planner Executor",
+    "description": "Planning and execution are separated across distinct components or agents."
+  },
+  {
+    "slug": "graph-orchestration",
+    "label": "Graph Orchestration",
+    "description": "Execution flows through an explicit node and edge graph."
+  },
+  {
+    "slug": "swarm",
+    "label": "Swarm",
+    "description": "Many agents coordinate in a relatively decentralized pattern."
+  },
+  {
+    "slug": "shared-memory",
+    "label": "Shared Memory",
+    "description": "Agents collaborate through a common memory or context layer."
+  }
+]

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Blog | multiagentsecurity.ai{% endblock %}
+
+{% block body %}
+  <main class="page-shell">
+    <section class="hero hero-page">
+      <div class="hero-copy">
+        <p class="eyebrow">Blog</p>
+        <h1>Expert writing for an emerging field.</h1>
+        <p class="lede">
+          This section is for original analysis, field framing, design critiques, and synthesis pieces that help
+          define multi-agent security as a coherent research and engineering area.
+        </p>
+      </div>
+    </section>
+
+    <section class="content-stack">
+      {% for post in posts %}
+        <article class="post-card">
+          <p class="item-meta">{{ post.date }}</p>
+          <h2><a href="/blog/{{ post.slug }}">{{ post.title }}</a></h2>
+          <p>{{ post.summary }}</p>
+        </article>
+      {% endfor %}
+    </section>
+  </main>
+{% endblock %}

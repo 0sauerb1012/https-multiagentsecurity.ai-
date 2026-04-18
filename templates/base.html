@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}multiagentsecurity.ai{% endblock %}</title>
+    <meta
+      name="description"
+      content="A research and intelligence hub for multi-agent security, combining live paper tracking, curated knowledge, concepts, tools, and field analysis."
+    />
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}" />
+    <script defer src="{{ url_for('static', path='/app.js') }}"></script>
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="site-header">
+        <div class="site-header-inner">
+          <a class="site-brand" href="/">
+            <span class="brand-mark"></span>
+            <span class="brand-copy">
+              <strong>multiagentsecurity.ai</strong>
+              <span>Research and intelligence hub</span>
+            </span>
+          </a>
+
+          <nav class="site-nav" aria-label="Primary navigation">
+            {% for item in site_nav %}
+              {% set item_active = active_page == item.href %}
+              {% if item.children is defined %}
+                {% for child in item.children %}
+                  {% if active_page == child.href %}
+                    {% set item_active = true %}
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
+              <div class="site-nav-item">
+                <a class="site-nav-link {% if item_active %}is-active{% endif %}" href="{{ item.href }}">
+                  {{ item.label }}
+                  {% if item.children is defined %}
+                    <span class="site-nav-caret" aria-hidden="true">▾</span>
+                  {% endif %}
+                </a>
+
+                {% if item.children is defined %}
+                  <div class="site-subnav" role="menu" aria-label="{{ item.label }}">
+                    {% for child in item.children %}
+                      <a class="site-subnav-link {% if active_page == child.href %}is-active{% endif %}" href="{{ child.href }}">
+                        {{ child.label }}
+                      </a>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </nav>
+        </div>
+      </header>
+
+      {% block body %}{% endblock %}
+
+      <footer class="site-footer">
+        <div class="site-footer-inner">
+          <div>
+            <p class="footer-title">multiagentsecurity.ai</p>
+            <p class="footer-copy">
+              A local-first research and intelligence surface for tracking multi-agent security work across papers,
+              concepts, incidents, tools, and public writing.
+            </p>
+          </div>
+          <div class="footer-meta">
+            <span>Python / FastAPI / Jinja</span>
+            <span>Current feeds: {{ active_source_feeds | join(", ") }}</span>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

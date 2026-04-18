@@ -1,0 +1,22 @@
+[
+  {
+    "slug": "zero-trust",
+    "label": "Zero Trust",
+    "description": "Treating components as untrusted until explicitly constrained and verified."
+  },
+  {
+    "slug": "trust-scoring",
+    "label": "Trust Scoring",
+    "description": "Assigning confidence levels to agents, tools, or outputs."
+  },
+  {
+    "slug": "policy-enforcement",
+    "label": "Policy Enforcement",
+    "description": "Applying explicit policy checks to agent actions and outputs."
+  },
+  {
+    "slug": "observability",
+    "label": "Observability",
+    "description": "Capturing telemetry, traces, and audit data for review and detection."
+  }
+]

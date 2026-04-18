@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Talks / About | multiagentsecurity.ai{% endblock %}
+
+{% block body %}
+  <main class="page-shell">
+    <section class="hero hero-page">
+      <div class="hero-copy">
+        <p class="eyebrow">Talks / about</p>
+        <h1>Establish the public surface of the hub.</h1>
+        <p class="lede">
+          This section combines talks, slide decks, conference-facing material, and a short profile so the site can
+          function both as multiagentsecurity.ai and as a credible public home for the work.
+        </p>
+      </div>
+    </section>
+
+    <section class="section-split">
+      <div class="stack-card">
+        <p class="eyebrow">About</p>
+        <h2>What this hub is for</h2>
+        <p>
+          Multi-agent security is crossing from a scattered set of adjacent conversations into a field that needs its
+          own synthesis. This site is meant to make that synthesis easier to build and easier to share.
+        </p>
+      </div>
+      <div class="stack-card">
+        <p class="eyebrow">Talk formats</p>
+        <div class="compact-list">
+          {% for talk in talks %}
+            <article class="compact-item">
+              <h3>{{ talk.title }}</h3>
+              <p>{{ talk.description }}</p>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+  </main>
+{% endblock %}

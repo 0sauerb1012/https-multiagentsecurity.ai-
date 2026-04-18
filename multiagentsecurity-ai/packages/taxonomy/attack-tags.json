@@ -1,0 +1,22 @@
+[
+  {
+    "slug": "prompt-injection",
+    "label": "Prompt Injection",
+    "description": "Manipulating prompts or instructions to redirect agent behavior."
+  },
+  {
+    "slug": "memory-poisoning",
+    "label": "Memory Poisoning",
+    "description": "Contaminating retained or shared memory to influence later execution."
+  },
+  {
+    "slug": "tool-abuse",
+    "label": "Tool Abuse",
+    "description": "Misusing tool access or tool invocation to exceed intended capabilities."
+  },
+  {
+    "slug": "agent-collusion",
+    "label": "Agent Collusion",
+    "description": "Undesired coordination between agents that amplifies risk or bypasses controls."
+  }
+]
