@@ -94,30 +94,37 @@ HOME_FEATURES = [
 
 LIBRARY_TOPICS = [
     {
+        "slug": "prompt-injection",
         "title": "Prompt injection",
         "description": "Injection paths in planning loops, agent memory, tool use, and multi-turn orchestration chains.",
     },
     {
+        "slug": "trust-and-identity",
         "title": "Trust and identity",
         "description": "Authentication, dynamic trust scoring, role separation, and identity in agent-to-agent interactions.",
     },
     {
+        "slug": "agent-to-agent-communication",
         "title": "Agent-to-agent communication",
         "description": "Messaging protocols, negotiation, shared context, and manipulation risks across autonomous agents.",
     },
     {
+        "slug": "orchestration-risk",
         "title": "Orchestration risk",
         "description": "Supervisor vulnerabilities, planner abuse, unsafe delegation, and cascading failure modes in MAS systems.",
     },
     {
+        "slug": "memory-poisoning",
         "title": "Memory poisoning",
         "description": "Corrupted context stores, retrieval attacks, long-horizon manipulation, and state pollution.",
     },
     {
+        "slug": "governance-and-policy",
         "title": "Governance and policy",
         "description": "Controls, accountability, assurance, safety policy, and operational governance for agent ecosystems.",
     },
     {
+        "slug": "benchmarks-and-evaluation",
         "title": "Benchmarks and evaluation",
         "description": "Threat models, safety benchmarks, evaluation harnesses, and empirical MAS security measurement.",
     },
@@ -371,9 +378,9 @@ TALKS = [
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
+        request,
         "index.html",
         _base_context(
-            request,
             active_page="/",
             home_features=HOME_FEATURES,
             featured_research=LIBRARY_TOPICS[:3],
@@ -388,9 +395,9 @@ async def home(request: Request) -> HTMLResponse:
 @router.get("/research-feed", response_class=HTMLResponse)
 async def research_feed(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
+        request,
         "research_feed.html",
         _base_context(
-            request,
             active_page="/research-feed",
             topics=BROAD_AGENTIC_AI_TOPICS,
             active_source_feeds=ACTIVE_SOURCE_FEEDS,
@@ -405,17 +412,27 @@ async def get_feed_partial(
     limit: int = Query(default=12, ge=1, le=20),
 ) -> HTMLResponse:
     context = await _build_feed_context(request, limit=limit)
-    return templates.TemplateResponse("_feed_content.html", context)
+    return templates.TemplateResponse(request, "_feed_content.html", context)
 
 
 @router.get("/research-library", response_class=HTMLResponse)
 async def research_library(request: Request) -> HTMLResponse:
+    try:
+        library_groups = await hub_service.fetch_library_groups(limit=24)
+        error = None if library_groups else "No classified papers are available for the library yet."
+    except Exception as exc:
+        library_groups = []
+        detail = str(exc).strip() or exc.__class__.__name__
+        error = f"Unable to build the research library right now: {detail}"
+
     return templates.TemplateResponse(
+        request,
         "research_library.html",
         _base_context(
-            request,
             active_page="/research-library",
             library_topics=LIBRARY_TOPICS,
+            library_groups=library_groups,
+            error=error,
         ),
     )
 
@@ -425,19 +442,18 @@ async def research_gaps(request: Request) -> HTMLResponse:
     context = await _build_feed_context(request, limit=12)
     context.update(
         _base_context(
-            request,
             active_page="/research-gaps",
         )
     )
-    return templates.TemplateResponse("research_gaps.html", context)
+    return templates.TemplateResponse(request, "research_gaps.html", context)
 
 
 @router.get("/blog", response_class=HTMLResponse)
 async def blog_index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
+        request,
         "blog_index.html",
         _base_context(
-            request,
             active_page="/blog",
             posts=BLOG_POSTS,
         ),
@@ -448,9 +464,9 @@ async def blog_index(request: Request) -> HTMLResponse:
 async def blog_post(request: Request, slug: str) -> HTMLResponse:
     post = next((item for item in BLOG_POSTS if item["slug"] == slug), BLOG_POSTS[0])
     return templates.TemplateResponse(
+        request,
         "blog_post.html",
         _base_context(
-            request,
             active_page="/blog",
             post=post,
         ),
@@ -460,9 +476,9 @@ async def blog_post(request: Request, slug: str) -> HTMLResponse:
 @router.get("/concepts", response_class=HTMLResponse)
 async def concepts_index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
+        request,
         "concepts.html",
         _base_context(
-            request,
             active_page="/concepts",
             concept_articles=CONCEPT_ARTICLES,
         ),
@@ -473,9 +489,9 @@ async def concepts_index(request: Request) -> HTMLResponse:
 async def concept_detail(request: Request, slug: str) -> HTMLResponse:
     article = next((item for item in CONCEPT_ARTICLES if item["slug"] == slug), CONCEPT_ARTICLES[0])
     return templates.TemplateResponse(
+        request,
         "concept_detail.html",
         _base_context(
-            request,
             active_page="/concepts",
             article=article,
         ),
@@ -485,9 +501,9 @@ async def concept_detail(request: Request, slug: str) -> HTMLResponse:
 @router.get("/tools-frameworks", response_class=HTMLResponse)
 async def tools_frameworks(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
+        request,
         "tools_frameworks.html",
         _base_context(
-            request,
             active_page="/tools-frameworks",
             tools=TOOLS_AND_FRAMEWORKS,
         ),
@@ -497,9 +513,9 @@ async def tools_frameworks(request: Request) -> HTMLResponse:
 @router.get("/experiments", response_class=HTMLResponse)
 async def experiments(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
+        request,
         "experiments.html",
         _base_context(
-            request,
             active_page="/experiments",
             experiments=EXPERIMENTS,
         ),
@@ -509,9 +525,9 @@ async def experiments(request: Request) -> HTMLResponse:
 @router.get("/industry-intel", response_class=HTMLResponse)
 async def industry_intel(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
+        request,
         "industry_intel.html",
         _base_context(
-            request,
             active_page="/industry-intel",
             intel_items=INDUSTRY_ITEMS,
             intel_feeds=INDUSTRY_FEEDS,
@@ -525,9 +541,9 @@ async def industry_intel(request: Request) -> HTMLResponse:
 @router.get("/about", response_class=HTMLResponse)
 async def about(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
+        request,
         "about.html",
         _base_context(
-            request,
             active_page="/about",
             talks=TALKS,
         ),
@@ -550,9 +566,9 @@ async def area_detail(
         error = f"Unable to load this research area right now: {detail}"
 
     return templates.TemplateResponse(
+        request,
         "area.html",
         _base_context(
-            request,
             active_page="/research-gaps",
             area_label=area_label,
             cards=cards,
@@ -569,8 +585,8 @@ async def fetch_latest_papers(
     limit: int = Form(default=12),
 ) -> HTMLResponse:
     context = await _build_feed_context(request, limit=limit)
-    context.update(_base_context(request, active_page="/research-feed"))
-    return templates.TemplateResponse("research_feed.html", context)
+    context.update(_base_context(active_page="/research-feed"))
+    return templates.TemplateResponse(request, "research_feed.html", context)
 
 
 async def _build_feed_context(request: Request, *, limit: int) -> dict:
@@ -608,9 +624,8 @@ async def _build_feed_context(request: Request, *, limit: int) -> dict:
     }
 
 
-def _base_context(request: Request, *, active_page: str, **extra: object) -> dict:
+def _base_context(*, active_page: str, **extra: object) -> dict:
     return {
-        "request": request,
         "site_nav": SITE_NAV,
         "active_page": active_page,
         "active_source_feeds": ACTIVE_SOURCE_FEEDS,

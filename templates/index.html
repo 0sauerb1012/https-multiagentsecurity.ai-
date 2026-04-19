@@ -82,6 +82,30 @@
       </div>
     </section>
 
+    <section class="section-block taxonomy-showcase">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Topic groupings</p>
+          <h2>First-pass library taxonomy</h2>
+        </div>
+        <p class="section-copy">
+          Start with a topic area, then click through to explore the papers currently mapped into that part of the field.
+        </p>
+      </div>
+
+      <div class="taxonomy-grid">
+        {% for item in featured_research %}
+          <a class="taxonomy-card" href="/areas/{{ item.slug }}">
+            <p class="card-tag">Library topic</p>
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.description }}</p>
+          </a>
+        {% endfor %}
+      </div>
+
+      <a class="inline-link" href="/research-library">Open the full research library</a>
+    </section>
+
     <section class="section-block section-split section-preview-split">
       <div class="stack-card stack-card-strong">
         <div class="section-heading section-heading-tight">

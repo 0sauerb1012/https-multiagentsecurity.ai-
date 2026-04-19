@@ -20,6 +20,8 @@ env/
 # Coverage and reports
 .coverage
 htmlcov/
+data/
+*.db
 
 # OS/editor noise
 .DS_Store

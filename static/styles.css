@@ -439,14 +439,39 @@ button:hover {
 }
 
 .feature-grid,
-.content-grid {
+.content-grid,
+.taxonomy-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
 }
 
+.library-groups {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.library-group-card {
+  padding: 1.35rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+    rgba(255, 255, 255, 0.014);
+}
+
+.library-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
 .feature-card,
-.content-card {
+.content-card,
+.taxonomy-card {
   padding: 1.35rem;
   text-decoration: none;
 }
@@ -464,7 +489,26 @@ button:hover {
     background 150ms ease;
 }
 
+.taxonomy-showcase {
+  padding-top: 1.6rem;
+}
+
+.taxonomy-card {
+  display: block;
+  min-height: 190px;
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012)),
+    rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--border);
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    background 150ms ease;
+}
+
 .feature-card:hover,
+.taxonomy-card:hover,
 .content-card:hover,
 .post-card:hover {
   transform: translateY(-2px);
@@ -474,6 +518,15 @@ button:hover {
 .feature-card p,
 .content-card p {
   margin: 0.65rem 0 0;
+}
+
+.taxonomy-card p:last-child {
+  margin: 0.65rem 0 0;
+  color: var(--muted);
+}
+
+.content-card-link {
+  display: block;
 }
 
 .section-split {
@@ -1057,6 +1110,7 @@ code {
   .summary-grid,
   .insights-slab,
   .feature-grid,
+  .taxonomy-grid,
   .content-grid,
   .control-panel,
   .paper-body,

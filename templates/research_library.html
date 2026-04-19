@@ -19,20 +19,16 @@
     <section class="section-block">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">Topic groupings</p>
-          <h2>First-pass library taxonomy</h2>
+          <h2>Library taxonomy</h2>
         </div>
-        <p class="section-copy">
-          These groupings are placeholders for future curated paper sets, annotated resources, and topic landing pages.
-        </p>
       </div>
       <div class="content-grid">
         {% for topic in library_topics %}
-          <article class="content-card">
+          <a class="content-card content-card-link" href="/areas/{{ topic.slug }}">
             <p class="card-tag">Library topic</p>
             <h3>{{ topic.title }}</h3>
             <p>{{ topic.description }}</p>
-          </article>
+          </a>
         {% endfor %}
       </div>
     </section>

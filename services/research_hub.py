@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import math
 from math import ceil
@@ -15,7 +14,16 @@ from api.app.services.ranking import build_rationale, rank_papers
 
 from .categorization import HUB_CATEGORY_LABELS, PaperCategorizationService
 from .crossref import CrossrefClient
+from .database import DatabaseService
 from .dblp import DblpClient
+from .hub_types import (
+    HeatmapRow,
+    LandscapeEdge,
+    LandscapeNode,
+    LibraryCategoryGroup,
+    PaperCard,
+    ResearchHubResult,
+)
 from .merging import PaperMergingService
 from .openalex import OpenAlexClient
 from .semantic_scholar import SemanticScholarClient
@@ -26,64 +34,6 @@ from .topic_catalog import (
     MULTI_AGENT_SECURITY_FIELD_TOPIC,
     TopicDefinition,
 )
-
-
-@dataclass(frozen=True)
-class PaperCard:
-    paper: ReviewedPaper
-    bullets: list[str]
-
-
-@dataclass(frozen=True)
-class HeatmapRow:
-    slug: str
-    category: str
-    count: int
-    intensity: float
-    status: str
-
-
-@dataclass(frozen=True)
-class LandscapeNode:
-    slug: str
-    category: str
-    label_lines: list[str]
-    count: int
-    intensity: float
-    status: str
-    recent_count: int
-    source_count: int
-    source_summary: str
-    sample_titles: list[str]
-    x: float
-    y: float
-    radius: float
-    color: str
-
-
-@dataclass(frozen=True)
-class LandscapeEdge:
-    source_slug: str
-    target_slug: str
-    x1: float
-    y1: float
-    x2: float
-    y2: float
-    weight: int
-    opacity: float
-
-
-@dataclass(frozen=True)
-class ResearchHubResult:
-    cards: list[PaperCard]
-    feed_label: str
-    tracked_topics: list[str]
-    heatmap_rows: list[HeatmapRow]
-    landscape_nodes: list[LandscapeNode]
-    landscape_edges: list[LandscapeEdge]
-    gap_labels: list[str]
-    concentration_labels: list[str]
-
 
 class ResearchHubService:
     """Local-only service orchestration.
@@ -105,13 +55,37 @@ class ResearchHubService:
         self.categorization_service = PaperCategorizationService()
         self.merging_service = PaperMergingService()
         self.summary_service = PaperSummaryService()
+        self.database_service = DatabaseService()
 
     async def fetch_latest_papers(
         self,
         *,
         limit: int = 12,
     ) -> ResearchHubResult:
+        stored_snapshot = self._build_stored_snapshot(limit=limit)
+        if stored_snapshot is not None:
+            return stored_snapshot
         return await self._build_snapshot(limit=limit)
+
+    async def fetch_library_groups(self, *, limit: int = 24) -> list[LibraryCategoryGroup]:
+        if self.database_service.has_persisted_papers():
+            return self.database_service.load_library_groups(limit=max(limit * 20, 500))
+        snapshot = await self._build_snapshot(limit=limit)
+        groups: list[LibraryCategoryGroup] = []
+        for label in HUB_CATEGORY_LABELS:
+            matching_cards = [card for card in snapshot.cards if label in card.paper.hub_categories]
+            if not matching_cards:
+                continue
+            groups.append(
+                LibraryCategoryGroup(
+                    slug=self.slugify_category(label),
+                    category=label,
+                    count=len(matching_cards),
+                    cards=matching_cards[:3],
+                )
+            )
+        groups.sort(key=lambda group: (-group.count, group.category))
+        return groups
 
     async def fetch_area_papers(
         self,
@@ -119,12 +93,75 @@ class ResearchHubService:
         area_slug: str,
         limit: int = 36,
     ) -> tuple[str, list[PaperCard]]:
+        if self.database_service.has_persisted_papers():
+            return self.database_service.load_area_cards(area_slug=area_slug, limit=limit)
         snapshot = await self._build_snapshot(limit=limit)
         for row in snapshot.heatmap_rows:
             if row.slug == area_slug:
                 cards = [card for card in snapshot.cards if row.category in card.paper.hub_categories]
                 return row.category, cards
         raise ValueError("Unknown research area.")
+
+    async def ingest_and_store(
+        self,
+        *,
+        target_limit: int = 1000,
+        per_topic_limit: int = 60,
+    ) -> dict[str, int | str]:
+        target_limit = max(50, target_limit)
+        per_topic_limit = max(10, per_topic_limit)
+        topic_definitions = list(BROAD_AGENTIC_AI_TOPICS)
+        run = self.database_service.start_run(
+            notes=f"Batch ingestion target={target_limit}, per_topic_limit={per_topic_limit}"
+        )
+        fetched_count = 0
+        merged_count = 0
+        relevant_count = 0
+
+        try:
+            source_paper_sets = await asyncio.gather(
+                *(self._load_topic_papers(topic, per_topic_limit=per_topic_limit) for topic in topic_definitions)
+            )
+            fetched_count = sum(len(papers) for papers in source_paper_sets)
+            merged_candidates = self.merging_service.cluster_and_merge(
+                [paper for papers in source_paper_sets for paper in papers]
+            )
+            merged_count = len(merged_candidates)
+            filtered_papers = await self._filter_for_multi_agent_security(merged_candidates, limit=target_limit)
+            filtered_papers.sort(
+                key=lambda paper: (paper.fit_score, self._parse_datetime(paper.published)),
+                reverse=True,
+            )
+            selected = filtered_papers[:target_limit]
+            cards = await self._run_limited(selected, self._build_card, concurrency=4)
+            relevant_count = len(cards)
+            self.database_service.save_cards(cards, run_id=run.run_id)
+            self.database_service.finish_run(
+                run.run_id,
+                status="completed",
+                fetched_count=fetched_count,
+                merged_count=merged_count,
+                relevant_count=relevant_count,
+                notes="Batch ingestion completed successfully.",
+            )
+            return {
+                "run_id": run.run_id,
+                "fetched_count": fetched_count,
+                "merged_count": merged_count,
+                "relevant_count": relevant_count,
+                "stored_count": len(cards),
+                "database_path": str(self.database_service.db_path),
+            }
+        except Exception as exc:
+            self.database_service.finish_run(
+                run.run_id,
+                status="failed",
+                fetched_count=fetched_count,
+                merged_count=merged_count,
+                relevant_count=relevant_count,
+                notes=str(exc).strip() or exc.__class__.__name__,
+            )
+            raise
 
     async def _build_snapshot(self, *, limit: int) -> ResearchHubResult:
         limit = max(1, min(limit, 60))
@@ -148,7 +185,7 @@ class ResearchHubService:
         filtered_papers = await self._filter_for_multi_agent_security(merged_candidates, limit=limit)
         newest_first = sorted(filtered_papers, key=lambda paper: self._parse_datetime(paper.published), reverse=True)[:limit]
 
-        cards = await asyncio.gather(*(self._build_card(paper) for paper in newest_first))
+        cards = await self._run_limited(newest_first, self._build_card, concurrency=4)
         heatmap_rows, gap_labels, concentration_labels = self._build_heatmap(cards)
         landscape_nodes, landscape_edges = self._build_landscape(cards, heatmap_rows)
         return ResearchHubResult(
@@ -199,18 +236,24 @@ class ResearchHubService:
         ranked = rank_papers(MULTI_AGENT_SECURITY_FIELD_TOPIC, papers)
         review_pool = ranked[: max(limit * 3, 18)]
         if self.agent_service.is_enabled():
-            reviewed = await asyncio.gather(*(self._review_candidate(paper) for paper in review_pool))
+            reviewed = await self._run_limited(review_pool, self._review_candidate, concurrency=6)
         else:
             reviewed = [self._build_deterministic_review(paper) for paper in review_pool]
 
         accepted = [paper for paper in reviewed if paper.is_fit]
+        classified = await self._run_limited(accepted, self._classify_reviewed_paper, concurrency=6)
+        accepted = [paper for paper in classified if paper.is_fit and paper.hub_categories]
         if accepted:
             accepted.sort(key=lambda paper: (paper.fit_score, self._parse_datetime(paper.published)), reverse=True)
             return accepted
 
-        fallback_ranked = [self._build_deterministic_review(paper) for paper in review_pool]
+        fallback_ranked = await self._run_limited(
+            [self._build_deterministic_review(paper) for paper in review_pool],
+            self._classify_reviewed_paper,
+            concurrency=6,
+        )
         fallback_ranked.sort(key=lambda paper: (paper.fit_score, self._parse_datetime(paper.published)), reverse=True)
-        return [paper for paper in fallback_ranked if paper.is_fit][:limit]
+        return [paper for paper in fallback_ranked if paper.is_fit and paper.hub_categories][:limit]
 
     async def _review_candidate(self, paper: RankedPaper) -> ReviewedPaper:
         try:
@@ -249,9 +292,67 @@ class ResearchHubService:
         )
 
     async def _build_card(self, paper: ReviewedPaper) -> PaperCard:
-        categorized = paper.model_copy(update={"hub_categories": self.categorization_service.categorize(paper)})
-        bullets = await self.summary_service.summarize(categorized)
-        return PaperCard(paper=categorized, bullets=bullets)
+        bullets = await self.summary_service.summarize(paper)
+        return PaperCard(paper=paper, bullets=bullets)
+
+    async def _classify_reviewed_paper(self, paper: ReviewedPaper) -> ReviewedPaper:
+        heuristic = self.categorization_service.classify(paper)
+        categories = heuristic.categories
+        is_relevant = paper.is_fit and heuristic.is_relevant
+        confidence = heuristic.confidence
+        rationale = heuristic.rationale
+
+        if self.agent_service.classifier_enabled():
+            try:
+                decision = await self.agent_service.classify_paper(
+                    topic=MULTI_AGENT_SECURITY_FIELD_TOPIC,
+                    taxonomy=list(HUB_CATEGORY_LABELS),
+                    paper=paper,
+                    reviewer_notes=paper.reviewer_notes,
+                    fallback_categories=categories,
+                )
+                if decision.categories:
+                    categories = decision.categories
+                is_relevant = paper.is_fit and decision.is_relevant and bool(categories)
+                confidence = decision.confidence
+                rationale = decision.rationale
+            except Exception:
+                pass
+
+        return paper.model_copy(
+            update={
+                "hub_categories": categories,
+                "is_fit": is_relevant and bool(categories),
+                "classification_confidence": confidence,
+                "classification_notes": rationale,
+            }
+        )
+
+    def _build_stored_snapshot(self, *, limit: int) -> ResearchHubResult | None:
+        if not self.database_service.has_persisted_papers():
+            return None
+        cards = self.database_service.load_cards(limit=limit)
+        heatmap_rows, gap_labels, concentration_labels = self._build_heatmap(cards)
+        landscape_nodes, landscape_edges = self._build_landscape(cards, heatmap_rows)
+        return ResearchHubResult(
+            cards=cards,
+            feed_label="Stored multi-agent security corpus",
+            tracked_topics=[topic.label for topic in BROAD_AGENTIC_AI_TOPICS],
+            heatmap_rows=heatmap_rows,
+            landscape_nodes=landscape_nodes,
+            landscape_edges=landscape_edges,
+            gap_labels=gap_labels,
+            concentration_labels=concentration_labels,
+        )
+
+    async def _run_limited(self, items: list, worker, *, concurrency: int) -> list:
+        semaphore = asyncio.Semaphore(concurrency)
+
+        async def _run(item):
+            async with semaphore:
+                return await worker(item)
+
+        return await asyncio.gather(*(_run(item) for item in items))
 
     def _build_heatmap(self, cards: list[PaperCard]) -> tuple[list[HeatmapRow], list[str], list[str]]:
         category_labels = list(HUB_CATEGORY_LABELS)
