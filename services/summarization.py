@@ -11,7 +11,7 @@ from api.app.services.paper_content import PaperContentService
 
 
 class PaperSummaryService:
-    """Summarize papers with OpenAI when available and fall back to local heuristics."""
+    """Summarize papers with OpenAI only."""
 
     def __init__(self) -> None:
         self.agent_service = OpenAIAgentService()
@@ -34,21 +34,19 @@ class PaperSummaryService:
         }
 
     async def summarize(self, paper: Paper) -> list[str]:
-        source_text = await self._load_source_text(paper)
-        if self.agent_service.summarizer_enabled():
-            try:
-                summary = await self.agent_service.summarize_paper(
-                    topic="multi-agent security research",
-                    paper=paper,
-                    paper_text=source_text,
-                )
-                bullets = [self._normalize_bullet(point) for point in summary.key_points_summary if point.strip()]
-                if bullets:
-                    return bullets[:5]
-            except Exception:
-                pass
+        if not self.agent_service.summarizer_enabled():
+            raise RuntimeError("OpenAI summarization is required for this pipeline. Configure a working OPENAI_API_KEY.")
 
-        return self._build_extractive_summary(source_text, paper.summary)
+        source_text = await self._load_source_text(paper)
+        summary = await self.agent_service.summarize_paper(
+            topic="multi-agent security research",
+            paper=paper,
+            paper_text=source_text,
+        )
+        bullets = [self._normalize_bullet(point) for point in summary.key_points_summary if point.strip()]
+        if not bullets:
+            raise RuntimeError(f"OpenAI summarization returned no bullets for paper {paper.id}.")
+        return bullets[:5]
 
     async def _load_source_text(self, paper: Paper) -> str:
         if paper.pdf_url:

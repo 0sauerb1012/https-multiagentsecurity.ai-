@@ -57,38 +57,38 @@ HOME_FEATURES = [
     {
         "title": "Research feed",
         "href": "/research-feed",
-        "description": "Track the newest multi-agent security papers across scholarly sources, with summaries and source-aware metadata.",
-        "eyebrow": "Live research",
+        "description": "Review recently collected multi-agent security papers across scholarly sources, with summaries and source metadata.",
+        "eyebrow": "Current literature",
     },
     {
         "title": "Research library",
         "href": "/research-library",
-        "description": "Organize the core literature by subarea so the hub becomes a working map of the field, not just a stream.",
-        "eyebrow": "Structured knowledge",
+        "description": "Browse the stored literature by topic area using the current site taxonomy.",
+        "eyebrow": "Categorized literature",
     },
     {
         "title": "Research gaps",
         "href": "/research-gaps",
-        "description": "See where the field is crowded, where it is thin, and where new experiments or reviews would add signal.",
-        "eyebrow": "Intelligence layer",
+        "description": "Inspect category counts and identify areas with relatively high or low coverage in the stored corpus.",
+        "eyebrow": "Coverage analysis",
     },
     {
         "title": "Concepts",
         "href": "/concepts",
-        "description": "Publish crisp explainers for foundational ideas like prompt injection, trust scoring, and agent identity.",
-        "eyebrow": "Knowledge base",
+        "description": "Read short concept notes on topics such as prompt injection, trust scoring, and agent identity.",
+        "eyebrow": "Reference material",
     },
     {
         "title": "Industry intel",
         "href": "/industry-intel",
-        "description": "Track incidents, vendor research, ecosystem shifts, and operational lessons outside formal academic publishing.",
-        "eyebrow": "Field awareness",
+        "description": "Track non-academic sources such as incident reports, vendor publications, and practitioner commentary.",
+        "eyebrow": "External sources",
     },
     {
         "title": "Talks / about",
         "href": "/about",
-        "description": "Package talks, deck links, and profile material so the site establishes authority as a public research hub.",
-        "eyebrow": "Public presence",
+        "description": "Provide short background information and a record of talk formats associated with the project.",
+        "eyebrow": "Project information",
     },
 ]
 
@@ -133,17 +133,17 @@ LIBRARY_TOPICS = [
 HOME_RESEARCH_PREVIEW = [
     {
         "title": "Prompt injection through delegation chains",
-        "summary": "A placeholder slot for the newest papers or summaries touching multi-step compromise, tool misuse, and indirect prompt attacks.",
+        "summary": "Recent work on multi-step compromise, tool misuse, and indirect prompt injection in agent workflows.",
         "meta": "Latest papers",
     },
     {
         "title": "Trust, identity, and cross-agent verification",
-        "summary": "A preview surface for the work converging on dynamic trust scoring, role separation, and secure agent-to-agent interaction.",
+        "summary": "Recent work on dynamic trust scoring, role separation, and verification in agent-to-agent interaction.",
         "meta": "Emerging themes",
     },
     {
         "title": "Memory poisoning and long-horizon manipulation",
-        "summary": "A modular preview block for papers that connect retrieval, memory persistence, and cumulative system corruption.",
+        "summary": "Recent work connecting retrieval, persistent memory, and long-horizon manipulation in agent systems.",
         "meta": "Recent summaries",
     },
 ]
@@ -189,7 +189,7 @@ CONCEPT_ARTICLES = [
     {
         "slug": "dynamic-trust-scoring",
         "title": "What is dynamic trust scoring?",
-        "summary": "A first-pass explainer for trust calibration between agents, tools, identities, and external services.",
+        "summary": "An introductory note on trust calibration between agents, tools, identities, and external services.",
     },
 ]
 
@@ -201,7 +201,7 @@ TOOLS_AND_FRAMEWORKS = [
     },
     {
         "title": "Prompt and tool policy enforcement",
-        "description": "Curated guardrail stacks, execution policies, and runtime filters for tool-enabled agent systems.",
+        "description": "Policy layers, execution controls, and runtime filtering approaches for tool-enabled agent systems.",
         "tag": "Policy",
     },
     {
@@ -219,22 +219,22 @@ TOOLS_AND_FRAMEWORKS = [
 EXPERIMENTS = [
     {
         "title": "Delegation abuse simulator",
-        "description": "Prototype space for testing how unsafe task handoffs propagate risk across agent teams.",
+        "description": "A placeholder for experiments on how unsafe task handoffs propagate risk across agent teams.",
     },
     {
         "title": "Prompt injection replay lab",
-        "description": "Future demo surface for replaying historical attack patterns against agent workflows and tool chains.",
+        "description": "A placeholder for experiments that replay prompt-injection patterns against agent workflows and tool chains.",
     },
     {
         "title": "Trust scoring sandbox",
-        "description": "Interactive space for modeling confidence, authorization, and decay across multi-agent interactions.",
+        "description": "A placeholder for experiments on confidence, authorization, and trust decay in multi-agent interaction.",
     },
 ]
 
 INDUSTRY_ITEMS = [
     {
         "title": "Vendor research watch",
-        "description": "Track model vendors, infrastructure providers, and platform teams publishing new agent-security work.",
+        "description": "Track publications from model vendors, infrastructure providers, and platform teams working on agent security.",
         "tag": "Vendor",
     },
     {
@@ -244,7 +244,7 @@ INDUSTRY_ITEMS = [
     },
     {
         "title": "Ecosystem commentary",
-        "description": "Placeholder for practitioner perspectives, architecture critiques, and field-building commentary.",
+        "description": "A placeholder for practitioner perspectives, architecture critiques, and commentary on current developments.",
         "tag": "Analysis",
     },
 ]
@@ -366,7 +366,7 @@ INDUSTRY_SCORING_WEIGHTS = {
 TALKS = [
     {
         "title": "Multi-agent security landscape",
-        "description": "Flagship talk slot for field framing, threat taxonomy, and emerging design patterns.",
+        "description": "A talk format focused on threat taxonomy, research structure, and design patterns in multi-agent security.",
     },
     {
         "title": "Research-driven practitioner briefings",
@@ -439,7 +439,7 @@ async def research_library(request: Request) -> HTMLResponse:
 
 @router.get("/research-gaps", response_class=HTMLResponse)
 async def research_gaps(request: Request) -> HTMLResponse:
-    context = await _build_feed_context(request, limit=12)
+    context = await _build_gap_context(request)
     context.update(
         _base_context(
             active_page="/research-gaps",
@@ -621,6 +621,41 @@ async def _build_feed_context(request: Request, *, limit: int) -> dict:
         "gap_labels": gap_labels,
         "concentration_labels": concentration_labels,
         "limit": max(1, min(limit, 20)),
+    }
+
+
+async def _build_gap_context(request: Request) -> dict:
+    try:
+        result = await hub_service.fetch_gap_snapshot()
+        error = None if result.heatmap_rows else "No categorized papers are available in the stored corpus yet."
+        cards = result.cards
+        feed_label = result.feed_label
+        tracked_topics = result.tracked_topics
+        heatmap_rows = result.heatmap_rows
+        gap_labels = result.gap_labels
+        concentration_labels = result.concentration_labels
+    except Exception as exc:
+        cards = []
+        feed_label = None
+        tracked_topics = []
+        heatmap_rows = []
+        gap_labels = []
+        concentration_labels = []
+        detail = str(exc).strip() or exc.__class__.__name__
+        error = f"Unable to build the research gaps view right now: {detail}"
+
+    return {
+        "request": request,
+        "cards": cards,
+        "error": error,
+        "feed_label": feed_label,
+        "tracked_topics": tracked_topics,
+        "topics": BROAD_AGENTIC_AI_TOPICS,
+        "active_source_feeds": ACTIVE_SOURCE_FEEDS,
+        "heatmap_rows": heatmap_rows,
+        "gap_labels": gap_labels,
+        "concentration_labels": concentration_labels,
+        "limit": 12,
     }
 
 

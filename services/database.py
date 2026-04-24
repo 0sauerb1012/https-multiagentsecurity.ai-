@@ -11,7 +11,7 @@ import sqlite3
 from api.app.config import settings
 from api.app.models import ReviewedPaper, SourceRecord
 
-from .research_hub import HeatmapRow, LibraryCategoryGroup, PaperCard
+from .hub_types import HeatmapRow, LibraryCategoryGroup, PaperCard
 
 
 @dataclass(frozen=True)
@@ -200,30 +200,31 @@ class DatabaseService:
             row = connection.execute("SELECT COUNT(*) AS count FROM papers WHERE is_fit = 1").fetchone()
         return bool(row and row["count"])
 
-    def load_cards(self, *, limit: int) -> list[PaperCard]:
+    def load_cards(self, *, limit: int | None = None) -> list[PaperCard]:
         self.initialize()
+        query = """
+            SELECT * FROM papers
+            WHERE is_fit = 1
+            ORDER BY published DESC, fit_score DESC
+        """
+        params: tuple[object, ...] = ()
+        if limit is not None:
+            query += "\nLIMIT ?"
+            params = (limit,)
         with self._connect() as connection:
-            rows = connection.execute(
-                """
-                SELECT * FROM papers
-                WHERE is_fit = 1
-                ORDER BY published DESC, fit_score DESC
-                LIMIT ?
-                """,
-                (limit,),
-            ).fetchall()
+            rows = connection.execute(query, params).fetchall()
         return [self._row_to_card(row) for row in rows]
 
     def load_area_cards(self, *, area_slug: str, limit: int) -> tuple[str, list[PaperCard]]:
-        cards = self.load_cards(limit=5000)
-        for group in self.load_library_groups(limit=5000):
+        cards = self.load_cards()
+        for group in self.load_library_groups():
             if group.slug == area_slug:
                 matching = [card for card in cards if group.category in card.paper.hub_categories][:limit]
                 return group.category, matching
         raise ValueError("Unknown research area.")
 
-    def load_library_groups(self, *, limit: int) -> list[LibraryCategoryGroup]:
-        cards = self.load_cards(limit=limit)
+    def load_library_groups(self) -> list[LibraryCategoryGroup]:
+        cards = self.load_cards()
         grouped: dict[str, list[PaperCard]] = {}
         for card in cards:
             for category in card.paper.hub_categories:
@@ -242,8 +243,8 @@ class DatabaseService:
         groups.sort(key=lambda group: (-group.count, group.category))
         return groups
 
-    def load_heatmap_rows(self, *, limit: int | None = None) -> tuple[list[HeatmapRow], list[str], list[str]]:
-        cards = self.load_cards(limit=limit or 5000)
+    def load_heatmap_rows(self) -> tuple[list[HeatmapRow], list[str], list[str]]:
+        cards = self.load_cards()
         counts: dict[str, int] = {}
         for card in cards:
             for category in card.paper.hub_categories:

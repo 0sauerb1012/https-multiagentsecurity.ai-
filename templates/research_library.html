@@ -32,5 +32,38 @@
         {% endfor %}
       </div>
     </section>
+
+    {% if error %}
+      <section class="message message-error">
+        <p>{{ error }}</p>
+      </section>
+    {% endif %}
+
+    {% if library_groups %}
+      <section class="section-block">
+        <div class="section-heading">
+          <div>
+            <h2>Stored article buckets</h2>
+          </div>
+          <p class="section-copy">
+            These groups come from the categorized article database and show a preview of the latest papers in each bucket.
+          </p>
+        </div>
+
+        <div class="content-grid">
+          {% for group in library_groups %}
+            <article class="content-card">
+              <p class="card-tag">{{ group.count }} papers</p>
+              <h3><a class="coverage-link" href="/areas/{{ group.slug }}">{{ group.category }}</a></h3>
+              <ul class="bullet-list">
+                {% for card in group.cards %}
+                  <li>{{ card.paper.title }}</li>
+                {% endfor %}
+              </ul>
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
   </main>
 {% endblock %}

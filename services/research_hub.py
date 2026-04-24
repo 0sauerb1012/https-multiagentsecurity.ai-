@@ -10,7 +10,7 @@ from math import ceil
 from api.app.models import Paper, RankedPaper, ReviewedPaper
 from api.app.services.arxiv import ArxivClient
 from api.app.services.openai_agents import OpenAIAgentService
-from api.app.services.ranking import build_rationale, rank_papers
+from api.app.services.ranking import rank_papers
 
 from .categorization import HUB_CATEGORY_LABELS, PaperCategorizationService
 from .crossref import CrossrefClient
@@ -69,7 +69,7 @@ class ResearchHubService:
 
     async def fetch_library_groups(self, *, limit: int = 24) -> list[LibraryCategoryGroup]:
         if self.database_service.has_persisted_papers():
-            return self.database_service.load_library_groups(limit=max(limit * 20, 500))
+            return self.database_service.load_library_groups()
         snapshot = await self._build_snapshot(limit=limit)
         groups: list[LibraryCategoryGroup] = []
         for label in HUB_CATEGORY_LABELS:
@@ -101,6 +101,23 @@ class ResearchHubService:
                 cards = [card for card in snapshot.cards if row.category in card.paper.hub_categories]
                 return row.category, cards
         raise ValueError("Unknown research area.")
+
+    async def fetch_gap_snapshot(self) -> ResearchHubResult:
+        if self.database_service.has_persisted_papers():
+            cards = self.database_service.load_cards(limit=12)
+            heatmap_rows, gap_labels, concentration_labels = self.database_service.load_heatmap_rows()
+            landscape_nodes, landscape_edges = self._build_landscape(cards, heatmap_rows)
+            return ResearchHubResult(
+                cards=cards,
+                feed_label="Stored multi-agent security corpus",
+                tracked_topics=[topic.label for topic in BROAD_AGENTIC_AI_TOPICS],
+                heatmap_rows=heatmap_rows,
+                landscape_nodes=landscape_nodes,
+                landscape_edges=landscape_edges,
+                gap_labels=gap_labels,
+                concentration_labels=concentration_labels,
+            )
+        return await self._build_snapshot(limit=12)
 
     async def ingest_and_store(
         self,
@@ -233,62 +250,34 @@ class ResearchHubService:
         return papers
 
     async def _filter_for_multi_agent_security(self, papers: list[Paper], *, limit: int) -> list[ReviewedPaper]:
+        if not self.agent_service.is_enabled():
+            raise RuntimeError("OpenAI review is required for this pipeline. Configure a working OPENAI_API_KEY.")
+        if not self.agent_service.classifier_enabled():
+            raise RuntimeError("OpenAI classification is required for this pipeline. Configure a working OPENAI_API_KEY.")
+
         ranked = rank_papers(MULTI_AGENT_SECURITY_FIELD_TOPIC, papers)
         review_pool = ranked[: max(limit * 3, 18)]
-        if self.agent_service.is_enabled():
-            reviewed = await self._run_limited(review_pool, self._review_candidate, concurrency=6)
-        else:
-            reviewed = [self._build_deterministic_review(paper) for paper in review_pool]
+        reviewed = await self._run_limited(review_pool, self._review_candidate, concurrency=6)
 
         accepted = [paper for paper in reviewed if paper.is_fit]
         classified = await self._run_limited(accepted, self._classify_reviewed_paper, concurrency=6)
         accepted = [paper for paper in classified if paper.is_fit and paper.hub_categories]
-        if accepted:
-            accepted.sort(key=lambda paper: (paper.fit_score, self._parse_datetime(paper.published)), reverse=True)
-            return accepted
-
-        fallback_ranked = await self._run_limited(
-            [self._build_deterministic_review(paper) for paper in review_pool],
-            self._classify_reviewed_paper,
-            concurrency=6,
-        )
-        fallback_ranked.sort(key=lambda paper: (paper.fit_score, self._parse_datetime(paper.published)), reverse=True)
-        return [paper for paper in fallback_ranked if paper.is_fit and paper.hub_categories][:limit]
+        accepted.sort(key=lambda paper: (paper.fit_score, self._parse_datetime(paper.published)), reverse=True)
+        return accepted
 
     async def _review_candidate(self, paper: RankedPaper) -> ReviewedPaper:
-        try:
-            decision = await self.agent_service.review_paper(
-                topic=MULTI_AGENT_SECURITY_FIELD_TOPIC,
-                min_fit_score=5.5,
-                paper=paper,
-                lexical_score=paper.relevance_score,
-                lexical_rationale=paper.rationale,
-            )
-            return ReviewedPaper(
-                **paper.model_dump(),
-                is_fit=decision.is_fit and decision.fit_score >= 5.5,
-                fit_score=decision.fit_score,
-                reviewer_notes=decision.reviewer_notes,
-            )
-        except Exception:
-            return self._build_deterministic_review(paper)
-
-    def _build_deterministic_review(self, paper: RankedPaper) -> ReviewedPaper:
-        threshold = 2.8
-        is_fit = paper.relevance_score >= threshold
-        reviewer_notes = build_rationale(
+        decision = await self.agent_service.review_paper(
             topic=MULTI_AGENT_SECURITY_FIELD_TOPIC,
-            title=paper.title,
-            summary=paper.summary,
-            threshold=threshold,
-            score=paper.relevance_score,
-            accepted=is_fit,
+            min_fit_score=5.5,
+            paper=paper,
+            lexical_score=paper.relevance_score,
+            lexical_rationale=paper.rationale,
         )
         return ReviewedPaper(
             **paper.model_dump(),
-            is_fit=is_fit,
-            fit_score=paper.relevance_score,
-            reviewer_notes=reviewer_notes,
+            is_fit=decision.is_fit and decision.fit_score >= 5.5,
+            fit_score=decision.fit_score,
+            reviewer_notes=decision.reviewer_notes,
         )
 
     async def _build_card(self, paper: ReviewedPaper) -> PaperCard:
@@ -297,27 +286,17 @@ class ResearchHubService:
 
     async def _classify_reviewed_paper(self, paper: ReviewedPaper) -> ReviewedPaper:
         heuristic = self.categorization_service.classify(paper)
-        categories = heuristic.categories
-        is_relevant = paper.is_fit and heuristic.is_relevant
-        confidence = heuristic.confidence
-        rationale = heuristic.rationale
-
-        if self.agent_service.classifier_enabled():
-            try:
-                decision = await self.agent_service.classify_paper(
-                    topic=MULTI_AGENT_SECURITY_FIELD_TOPIC,
-                    taxonomy=list(HUB_CATEGORY_LABELS),
-                    paper=paper,
-                    reviewer_notes=paper.reviewer_notes,
-                    fallback_categories=categories,
-                )
-                if decision.categories:
-                    categories = decision.categories
-                is_relevant = paper.is_fit and decision.is_relevant and bool(categories)
-                confidence = decision.confidence
-                rationale = decision.rationale
-            except Exception:
-                pass
+        decision = await self.agent_service.classify_paper(
+            topic=MULTI_AGENT_SECURITY_FIELD_TOPIC,
+            taxonomy=list(HUB_CATEGORY_LABELS),
+            paper=paper,
+            reviewer_notes=paper.reviewer_notes,
+            fallback_categories=heuristic.categories,
+        )
+        categories = decision.categories
+        is_relevant = paper.is_fit and decision.is_relevant and bool(categories)
+        confidence = decision.confidence
+        rationale = decision.rationale
 
         return paper.model_copy(
             update={
