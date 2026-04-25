@@ -1,0 +1,21 @@
+aws_region   = "us-east-1"
+project_name = "multiagentsecurity-ai"
+environment  = "dev"
+
+image_tag = "latest"
+
+# Prefer SSM parameter names so secrets do not live in Terraform state.
+database_url_param_name               = "/multiagentsecurity/dev/DATABASE_URL"
+openai_api_key_param_name             = "/multiagentsecurity/dev/OPENAI_API_KEY"
+openalex_api_key_param_name           = ""
+openalex_email_param_name             = ""
+crossref_email_param_name             = ""
+semantic_scholar_api_key_param_name   = ""
+
+# Optional non-secret env vars.
+plain_env_vars = {
+  OPENAI_MODEL = "gpt-4.1-mini"
+}
+
+incremental_schedule_expression = "cron(0 11 * * ? *)"
+reconcile_schedule_expression   = "cron(0 12 ? * SUN *)"

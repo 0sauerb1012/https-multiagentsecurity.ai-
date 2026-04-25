@@ -23,6 +23,12 @@ htmlcov/
 data/
 *.db
 
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+
 # OS/editor noise
 .DS_Store
 Thumbs.db

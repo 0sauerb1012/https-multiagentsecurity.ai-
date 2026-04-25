@@ -64,6 +64,13 @@ class ResearchHubService:
             "openalex": 200,
             "semantic_scholar": 100,
         }
+        self._source_labels = {
+            "arxiv": "arXiv",
+            "crossref": "Crossref",
+            "dblp": "DBLP",
+            "openalex": "OpenAlex",
+            "semantic_scholar": "Semantic Scholar",
+        }
 
     async def fetch_latest_papers(
         self,
@@ -168,18 +175,25 @@ class ResearchHubService:
     async def ingest_and_store(
         self,
         *,
+        mode: str = "seed",
         target_limit: int = 1000,
         per_topic_limit: int = 60,
         years_back: int = 5,
+        overlap_days: int = 3,
+        reconcile_lookback_days: int = 30,
     ) -> dict[str, int | str]:
         target_limit = max(50, target_limit)
         per_topic_limit = max(10, per_topic_limit)
         years_back = max(1, years_back)
+        overlap_days = max(1, overlap_days)
+        reconcile_lookback_days = max(7, reconcile_lookback_days)
         topic_definitions = list(BROAD_AGENTIC_AI_TOPICS)
         run = self.database_service.start_run(
+            mode=mode,
             notes=(
-                f"Batch ingestion target={target_limit}, per_topic_limit={per_topic_limit}, "
-                f"years_back={years_back}"
+                f"{mode} ingestion target={target_limit}, per_topic_limit={per_topic_limit}, "
+                f"years_back={years_back}, overlap_days={overlap_days}, "
+                f"reconcile_lookback_days={reconcile_lookback_days}"
             )
         )
         fetched_count = 0
@@ -191,18 +205,31 @@ class ResearchHubService:
                 *(
                     self._load_topic_papers(
                         topic,
+                        mode=mode,
                         per_topic_limit=per_topic_limit,
                         years_back=years_back,
+                        overlap_days=overlap_days,
+                        reconcile_lookback_days=reconcile_lookback_days,
                     )
                     for topic in topic_definitions
                 )
             )
-            fetched_count = sum(len(papers) for papers in source_paper_sets)
+            fetched_papers = [paper for papers in source_paper_sets for paper in papers]
+            fetched_count = len(fetched_papers)
             merged_candidates = self.merging_service.cluster_and_merge(
-                [paper for papers in source_paper_sets for paper in papers]
+                fetched_papers
             )
             merged_count = len(merged_candidates)
-            filtered_papers = await self._filter_for_multi_agent_security(merged_candidates, limit=target_limit)
+            candidates_for_review = merged_candidates
+            if mode != "seed":
+                existing_ids = self.database_service.known_canonical_ids(
+                    [(paper.canonical_id or paper.id) for paper in merged_candidates]
+                )
+                candidates_for_review = [
+                    paper for paper in merged_candidates if (paper.canonical_id or paper.id) not in existing_ids
+                ]
+
+            filtered_papers = await self._filter_for_multi_agent_security(candidates_for_review, limit=target_limit)
             filtered_papers.sort(
                 key=lambda paper: (paper.fit_score, self._parse_datetime(paper.published)),
                 reverse=True,
@@ -210,7 +237,8 @@ class ResearchHubService:
             selected = filtered_papers[:target_limit]
             cards = await self._run_limited(selected, self._build_card, concurrency=4)
             relevant_count = len(cards)
-            self.database_service.save_cards(cards, run_id=run.run_id)
+            self.database_service.save_cards(cards, run_id=run.run_id, ingestion_mode=mode)
+            self._update_source_sync_state(mode=mode, fetched_papers=fetched_papers)
             self.database_service.finish_run(
                 run.run_id,
                 status="completed",
@@ -221,6 +249,7 @@ class ResearchHubService:
             )
             return {
                 "run_id": run.run_id,
+                "mode": mode,
                 "fetched_count": fetched_count,
                 "merged_count": merged_count,
                 "relevant_count": relevant_count,
@@ -289,32 +318,67 @@ class ResearchHubService:
         self,
         topic: TopicDefinition,
         *,
+        mode: str,
         per_topic_limit: int,
         years_back: int,
+        overlap_days: int,
+        reconcile_lookback_days: int,
     ) -> list[Paper]:
-        cutoff = self._cutoff_datetime(years_back)
-        cutoff_date = cutoff.date().isoformat()
-        year_start = cutoff.year
+        arxiv_cutoff = self._ingestion_cutoff(
+            source_key="arxiv",
+            mode=mode,
+            years_back=years_back,
+            overlap_days=overlap_days,
+            reconcile_lookback_days=reconcile_lookback_days,
+        )
+        crossref_cutoff = self._ingestion_cutoff(
+            source_key="crossref",
+            mode=mode,
+            years_back=years_back,
+            overlap_days=overlap_days,
+            reconcile_lookback_days=reconcile_lookback_days,
+        )
+        dblp_cutoff = self._ingestion_cutoff(
+            source_key="dblp",
+            mode=mode,
+            years_back=years_back,
+            overlap_days=overlap_days,
+            reconcile_lookback_days=reconcile_lookback_days,
+        )
+        openalex_cutoff = self._ingestion_cutoff(
+            source_key="openalex",
+            mode=mode,
+            years_back=years_back,
+            overlap_days=overlap_days,
+            reconcile_lookback_days=reconcile_lookback_days,
+        )
+        semantic_cutoff = self._ingestion_cutoff(
+            source_key="semantic_scholar",
+            mode=mode,
+            years_back=years_back,
+            overlap_days=overlap_days,
+            reconcile_lookback_days=reconcile_lookback_days,
+        )
 
-        arxiv_task = self._fetch_arxiv_topic(topic.query, per_topic_limit=per_topic_limit, cutoff=cutoff)
+        arxiv_task = self._fetch_arxiv_topic(topic.query, per_topic_limit=per_topic_limit, cutoff=arxiv_cutoff)
         crossref_task = self._fetch_crossref_topic(
             topic.query,
             per_topic_limit=per_topic_limit,
-            cutoff=cutoff,
-            cutoff_date=cutoff_date,
+            cutoff=crossref_cutoff,
+            cutoff_date=crossref_cutoff.date().isoformat(),
         )
-        dblp_task = self._fetch_dblp_topic(topic.query, per_topic_limit=per_topic_limit, cutoff=cutoff)
+        dblp_task = self._fetch_dblp_topic(topic.query, per_topic_limit=per_topic_limit, cutoff=dblp_cutoff)
         openalex_task = self._fetch_openalex_topic(
             topic.query,
             per_topic_limit=per_topic_limit,
-            cutoff=cutoff,
-            cutoff_date=cutoff_date,
+            cutoff=openalex_cutoff,
+            cutoff_date=openalex_cutoff.date().isoformat(),
         )
         semantic_scholar_task = self._fetch_semantic_scholar_topic(
             topic.query,
             per_topic_limit=per_topic_limit,
-            cutoff=cutoff,
-            year_start=year_start,
+            cutoff=semantic_cutoff,
+            year_start=semantic_cutoff.year,
         )
         results = await asyncio.gather(
             arxiv_task,
@@ -330,6 +394,26 @@ class ResearchHubService:
             if not isinstance(result, Exception):
                 papers.extend(result)
         return papers
+
+    def _update_source_sync_state(self, *, mode: str, fetched_papers: list[Paper]) -> None:
+        completed_at = datetime.now(timezone.utc).isoformat()
+        for source_label in self._source_labels.values():
+            matching = [
+                paper for paper in fetched_papers if paper.source_name.split("·")[0].strip() == source_label
+            ]
+            watermark_published = None
+            watermark_source_id = None
+            if matching:
+                newest = max(matching, key=lambda paper: self._parse_datetime(paper.published))
+                watermark_published = clamp_future_year(newest.published)
+                watermark_source_id = newest.doi or newest.arxiv_id or newest.id
+            self.database_service.write_source_sync_state(
+                source_name=source_label,
+                last_successful_run_at=completed_at,
+                high_watermark_published_at=watermark_published,
+                high_watermark_source_id=watermark_source_id,
+                notes=f"{mode} run completed",
+            )
 
     async def _fetch_arxiv_topic(self, query: str, *, per_topic_limit: int, cutoff: datetime) -> list[Paper]:
         papers: list[Paper] = []
@@ -450,6 +534,8 @@ class ResearchHubService:
         return papers[:per_topic_limit]
 
     async def _filter_for_multi_agent_security(self, papers: list[Paper], *, limit: int) -> list[ReviewedPaper]:
+        if not papers:
+            return []
         if not self.agent_service.is_enabled():
             raise RuntimeError("OpenAI review is required for this pipeline. Configure a working OPENAI_API_KEY.")
         if not self.agent_service.classifier_enabled():
@@ -543,6 +629,29 @@ class ResearchHubService:
     def _cutoff_datetime(years_back: int) -> datetime:
         years_back = max(1, years_back)
         return datetime.now(timezone.utc) - timedelta(days=365 * years_back)
+
+    def _ingestion_cutoff(
+        self,
+        *,
+        source_key: str,
+        mode: str,
+        years_back: int,
+        overlap_days: int,
+        reconcile_lookback_days: int,
+    ) -> datetime:
+        default_cutoff = self._cutoff_datetime(years_back)
+        if mode == "seed":
+            return default_cutoff
+
+        source_label = self._source_labels[source_key]
+        sync_state = self.database_service.read_source_sync_state(source_label)
+        if sync_state and sync_state.high_watermark_published_at:
+            watermark = self._parse_datetime(sync_state.high_watermark_published_at)
+            lookback_days = overlap_days if mode == "incremental" else reconcile_lookback_days
+            return max(default_cutoff, watermark - timedelta(days=lookback_days))
+
+        fallback_days = 14 if mode == "incremental" else max(30, reconcile_lookback_days)
+        return max(default_cutoff, datetime.now(timezone.utc) - timedelta(days=fallback_days))
 
     def _build_heatmap(self, cards: list[PaperCard]) -> tuple[list[HeatmapRow], list[str], list[str]]:
         category_labels = list(HUB_CATEGORY_LABELS)

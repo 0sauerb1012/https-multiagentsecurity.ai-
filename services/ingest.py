@@ -1,4 +1,4 @@
-"""CLI entrypoint for local batch ingestion into SQLite."""
+"""CLI entrypoint for local and production batch ingestion."""
 
 from __future__ import annotations
 
@@ -10,6 +10,12 @@ from .research_hub import ResearchHubService
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Batch-ingest and persist multi-agent security papers locally.")
+    parser.add_argument(
+        "--mode",
+        choices=("seed", "incremental", "reconcile"),
+        default="incremental",
+        help="Run a one-time seed import, a daily incremental sync, or a wider reconcile pass.",
+    )
     parser.add_argument(
         "--target-limit",
         type=int,
@@ -28,6 +34,18 @@ def parse_args() -> argparse.Namespace:
         default=5,
         help="Only keep papers published within the last N years.",
     )
+    parser.add_argument(
+        "--overlap-days",
+        type=int,
+        default=3,
+        help="Incremental overlap window to catch late-indexed records.",
+    )
+    parser.add_argument(
+        "--reconcile-lookback-days",
+        type=int,
+        default=30,
+        help="Wider lookback window used during reconcile runs.",
+    )
     return parser.parse_args()
 
 
@@ -35,11 +53,14 @@ async def _main() -> None:
     args = parse_args()
     service = ResearchHubService()
     result = await service.ingest_and_store(
+        mode=args.mode,
         target_limit=args.target_limit,
         per_topic_limit=args.per_topic_limit,
         years_back=args.years_back,
+        overlap_days=args.overlap_days,
+        reconcile_lookback_days=args.reconcile_lookback_days,
     )
-    print("Batch ingestion completed.")
+    print(f"{args.mode.capitalize()} ingestion completed.")
     for key, value in result.items():
         print(f"{key}: {value}")
 
