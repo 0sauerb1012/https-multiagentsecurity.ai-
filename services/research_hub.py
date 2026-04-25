@@ -56,6 +56,13 @@ class ResearchHubService:
         self.merging_service = PaperMergingService()
         self.summary_service = PaperSummaryService()
         self.database_service = DatabaseService()
+        self._source_page_sizes = {
+            "arxiv": 200,
+            "crossref": 200,
+            "dblp": 200,
+            "openalex": 200,
+            "semantic_scholar": 100,
+        }
 
     async def fetch_latest_papers(
         self,
@@ -124,12 +131,17 @@ class ResearchHubService:
         *,
         target_limit: int = 1000,
         per_topic_limit: int = 60,
+        years_back: int = 5,
     ) -> dict[str, int | str]:
         target_limit = max(50, target_limit)
         per_topic_limit = max(10, per_topic_limit)
+        years_back = max(1, years_back)
         topic_definitions = list(BROAD_AGENTIC_AI_TOPICS)
         run = self.database_service.start_run(
-            notes=f"Batch ingestion target={target_limit}, per_topic_limit={per_topic_limit}"
+            notes=(
+                f"Batch ingestion target={target_limit}, per_topic_limit={per_topic_limit}, "
+                f"years_back={years_back}"
+            )
         )
         fetched_count = 0
         merged_count = 0
@@ -137,7 +149,14 @@ class ResearchHubService:
 
         try:
             source_paper_sets = await asyncio.gather(
-                *(self._load_topic_papers(topic, per_topic_limit=per_topic_limit) for topic in topic_definitions)
+                *(
+                    self._load_topic_papers(
+                        topic,
+                        per_topic_limit=per_topic_limit,
+                        years_back=years_back,
+                    )
+                    for topic in topic_definitions
+                )
             )
             fetched_count = sum(len(papers) for papers in source_paper_sets)
             merged_candidates = self.merging_service.cluster_and_merge(
@@ -182,10 +201,19 @@ class ResearchHubService:
 
     async def _build_snapshot(self, *, limit: int) -> ResearchHubResult:
         limit = max(1, min(limit, 60))
+        years_back = 5
+        cutoff = self._cutoff_datetime(years_back)
         topic_definitions = list(BROAD_AGENTIC_AI_TOPICS)
         per_topic_limit = max(8, ceil((limit * 3) / max(1, len(topic_definitions))) + 2)
         source_paper_sets = await asyncio.gather(
-            *(self._load_topic_papers(topic, per_topic_limit=per_topic_limit) for topic in topic_definitions)
+            *(
+                self._load_topic_papers(
+                    topic,
+                    per_topic_limit=per_topic_limit,
+                    years_back=years_back,
+                )
+                for topic in topic_definitions
+            )
         )
 
         merged_candidates = self.merging_service.cluster_and_merge([paper for papers in source_paper_sets for paper in papers])
@@ -197,7 +225,9 @@ class ResearchHubService:
                 sort_by="submittedDate",
                 sort_order="descending",
             )
-            merged_candidates = self.merging_service.cluster_and_merge(fallback_result.papers)
+            merged_candidates = self.merging_service.cluster_and_merge(
+                self._filter_recent_papers(fallback_result.papers, cutoff=cutoff)
+            )
 
         filtered_papers = await self._filter_for_multi_agent_security(merged_candidates, limit=limit)
         newest_first = sorted(filtered_papers, key=lambda paper: self._parse_datetime(paper.published), reverse=True)[:limit]
@@ -216,18 +246,38 @@ class ResearchHubService:
             concentration_labels=concentration_labels,
         )
 
-    async def _load_topic_papers(self, topic: TopicDefinition, *, per_topic_limit: int) -> list[Paper]:
-        arxiv_task = self.arxiv_client.search(
+    async def _load_topic_papers(
+        self,
+        topic: TopicDefinition,
+        *,
+        per_topic_limit: int,
+        years_back: int,
+    ) -> list[Paper]:
+        cutoff = self._cutoff_datetime(years_back)
+        cutoff_date = cutoff.date().isoformat()
+        year_start = cutoff.year
+
+        arxiv_task = self._fetch_arxiv_topic(topic.query, per_topic_limit=per_topic_limit, cutoff=cutoff)
+        crossref_task = self._fetch_crossref_topic(
             topic.query,
-            max_results=per_topic_limit,
-            sort_by="submittedDate",
-            sort_order="descending",
+            per_topic_limit=per_topic_limit,
+            cutoff=cutoff,
+            cutoff_date=cutoff_date,
         )
-        crossref_task = self.crossref_client.search(topic.query, rows=per_topic_limit)
-        dblp_task = self.dblp_client.search(topic.query, limit=per_topic_limit)
-        openalex_task = self.openalex_client.search(topic.query, per_page=per_topic_limit)
-        semantic_scholar_task = self.semantic_scholar_client.search(topic.query, limit=per_topic_limit)
-        arxiv_result, crossref_result, dblp_result, openalex_result, semantic_scholar_result = await asyncio.gather(
+        dblp_task = self._fetch_dblp_topic(topic.query, per_topic_limit=per_topic_limit, cutoff=cutoff)
+        openalex_task = self._fetch_openalex_topic(
+            topic.query,
+            per_topic_limit=per_topic_limit,
+            cutoff=cutoff,
+            cutoff_date=cutoff_date,
+        )
+        semantic_scholar_task = self._fetch_semantic_scholar_topic(
+            topic.query,
+            per_topic_limit=per_topic_limit,
+            cutoff=cutoff,
+            year_start=year_start,
+        )
+        results = await asyncio.gather(
             arxiv_task,
             crossref_task,
             dblp_task,
@@ -237,17 +287,128 @@ class ResearchHubService:
         )
 
         papers: list[Paper] = []
-        if not isinstance(arxiv_result, Exception):
-            papers.extend(arxiv_result.papers)
-        if not isinstance(crossref_result, Exception):
-            papers.extend(crossref_result.papers)
-        if not isinstance(dblp_result, Exception):
-            papers.extend(dblp_result.papers)
-        if not isinstance(openalex_result, Exception):
-            papers.extend(openalex_result.papers)
-        if not isinstance(semantic_scholar_result, Exception):
-            papers.extend(semantic_scholar_result.papers)
+        for result in results:
+            if not isinstance(result, Exception):
+                papers.extend(result)
         return papers
+
+    async def _fetch_arxiv_topic(self, query: str, *, per_topic_limit: int, cutoff: datetime) -> list[Paper]:
+        papers: list[Paper] = []
+        start = 0
+        page_size = self._source_page_sizes["arxiv"]
+        while len(papers) < per_topic_limit:
+            batch_size = min(page_size, per_topic_limit - len(papers))
+            result = await self.arxiv_client.search(
+                query,
+                start=start,
+                max_results=batch_size,
+                sort_by="submittedDate",
+                sort_order="descending",
+            )
+            if not result.papers:
+                break
+            fresh_batch = self._filter_recent_papers(result.papers, cutoff=cutoff)
+            papers.extend(fresh_batch)
+            start += len(result.papers)
+            if len(result.papers) < batch_size or start >= result.total_results or self._batch_is_before_cutoff(result.papers, cutoff):
+                break
+        return papers[:per_topic_limit]
+
+    async def _fetch_crossref_topic(
+        self,
+        query: str,
+        *,
+        per_topic_limit: int,
+        cutoff: datetime,
+        cutoff_date: str,
+    ) -> list[Paper]:
+        papers: list[Paper] = []
+        offset = 0
+        page_size = self._source_page_sizes["crossref"]
+        while len(papers) < per_topic_limit:
+            batch_size = min(page_size, per_topic_limit - len(papers))
+            result = await self.crossref_client.search(
+                query,
+                rows=batch_size,
+                offset=offset,
+                from_pub_date=cutoff_date,
+            )
+            if not result.papers:
+                break
+            papers.extend(self._filter_recent_papers(result.papers, cutoff=cutoff))
+            offset += len(result.papers)
+            if len(result.papers) < batch_size or offset >= result.total_results or self._batch_is_before_cutoff(result.papers, cutoff):
+                break
+        return papers[:per_topic_limit]
+
+    async def _fetch_dblp_topic(self, query: str, *, per_topic_limit: int, cutoff: datetime) -> list[Paper]:
+        papers: list[Paper] = []
+        offset = 0
+        page_size = self._source_page_sizes["dblp"]
+        while len(papers) < per_topic_limit:
+            batch_size = min(page_size, per_topic_limit - len(papers))
+            result = await self.dblp_client.search(query, limit=batch_size, offset=offset)
+            if not result.papers:
+                break
+            papers.extend(self._filter_recent_papers(result.papers, cutoff=cutoff))
+            offset += len(result.papers)
+            if len(result.papers) < batch_size or offset >= result.total_results or self._batch_is_before_cutoff(result.papers, cutoff):
+                break
+        return papers[:per_topic_limit]
+
+    async def _fetch_openalex_topic(
+        self,
+        query: str,
+        *,
+        per_topic_limit: int,
+        cutoff: datetime,
+        cutoff_date: str,
+    ) -> list[Paper]:
+        papers: list[Paper] = []
+        page = 1
+        page_size = self._source_page_sizes["openalex"]
+        while len(papers) < per_topic_limit:
+            batch_size = min(page_size, per_topic_limit - len(papers))
+            result = await self.openalex_client.search(
+                query,
+                per_page=batch_size,
+                page=page,
+                from_publication_date=cutoff_date,
+            )
+            if not result.papers:
+                break
+            papers.extend(self._filter_recent_papers(result.papers, cutoff=cutoff))
+            page += 1
+            if len(result.papers) < batch_size or ((page - 1) * batch_size) >= result.total_results or self._batch_is_before_cutoff(result.papers, cutoff):
+                break
+        return papers[:per_topic_limit]
+
+    async def _fetch_semantic_scholar_topic(
+        self,
+        query: str,
+        *,
+        per_topic_limit: int,
+        cutoff: datetime,
+        year_start: int,
+    ) -> list[Paper]:
+        papers: list[Paper] = []
+        offset = 0
+        page_size = self._source_page_sizes["semantic_scholar"]
+        while len(papers) < per_topic_limit:
+            batch_size = min(page_size, per_topic_limit - len(papers))
+            result = await self.semantic_scholar_client.search(
+                query,
+                limit=batch_size,
+                offset=offset,
+                year_start=year_start,
+            )
+            if not result.papers:
+                break
+            papers.extend(self._filter_recent_papers(result.papers, cutoff=cutoff))
+            offset += len(result.papers)
+            if len(result.papers) < batch_size or offset >= result.total_results or self._batch_is_before_cutoff(result.papers, cutoff):
+                break
+        return papers[:per_topic_limit]
 
     async def _filter_for_multi_agent_security(self, papers: list[Paper], *, limit: int) -> list[ReviewedPaper]:
         if not self.agent_service.is_enabled():
@@ -332,6 +493,17 @@ class ResearchHubService:
                 return await worker(item)
 
         return await asyncio.gather(*(_run(item) for item in items))
+
+    def _filter_recent_papers(self, papers: list[Paper], *, cutoff: datetime) -> list[Paper]:
+        return [paper for paper in papers if self._parse_datetime(paper.published) >= cutoff]
+
+    def _batch_is_before_cutoff(self, papers: list[Paper], cutoff: datetime) -> bool:
+        return bool(papers) and all(self._parse_datetime(paper.published) < cutoff for paper in papers)
+
+    @staticmethod
+    def _cutoff_datetime(years_back: int) -> datetime:
+        years_back = max(1, years_back)
+        return datetime.now(timezone.utc) - timedelta(days=365 * years_back)
 
     def _build_heatmap(self, cards: list[PaperCard]) -> tuple[list[HeatmapRow], list[str], list[str]]:
         category_labels = list(HUB_CATEGORY_LABELS)

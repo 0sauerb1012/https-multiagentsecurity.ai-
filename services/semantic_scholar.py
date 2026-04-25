@@ -22,14 +22,18 @@ class SemanticScholarClient:
         query: str,
         *,
         limit: int = 10,
+        offset: int = 0,
+        year_start: int | None = None,
     ) -> SemanticScholarSearchResult:
         params = {
             "query": f'"{query}"' if " " in query and '"' not in query else query,
             "fields": "title,url,abstract,authors,publicationDate,publicationTypes,openAccessPdf,venue,externalIds",
             "sort": "publicationDate:desc",
-            "limit": max(1, min(limit, settings.max_results_limit * 3)),
-            "year": "2023-",
+            "limit": max(1, min(limit, 100)),
+            "offset": max(0, offset),
         }
+        if year_start is not None:
+            params["year"] = f"{year_start}-"
         headers: dict[str, str] = {}
         if settings.semantic_scholar_api_key:
             headers["x-api-key"] = settings.semantic_scholar_api_key

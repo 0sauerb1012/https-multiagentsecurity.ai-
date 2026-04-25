@@ -22,12 +22,13 @@ class DblpClient:
         query: str,
         *,
         limit: int = 10,
+        offset: int = 0,
     ) -> DblpSearchResult:
         params = {
             "q": query,
             "format": "json",
-            "h": max(1, min(limit, settings.max_results_limit * 3)),
-            "f": 0,
+            "h": max(1, min(limit, 1000)),
+            "f": max(0, offset),
         }
 
         try:

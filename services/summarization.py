@@ -38,15 +38,18 @@ class PaperSummaryService:
             raise RuntimeError("OpenAI summarization is required for this pipeline. Configure a working OPENAI_API_KEY.")
 
         source_text = await self._load_source_text(paper)
-        summary = await self.agent_service.summarize_paper(
-            topic="multi-agent security research",
-            paper=paper,
-            paper_text=source_text,
-        )
-        bullets = [self._normalize_bullet(point) for point in summary.key_points_summary if point.strip()]
-        if not bullets:
-            raise RuntimeError(f"OpenAI summarization returned no bullets for paper {paper.id}.")
-        return bullets[:5]
+        try:
+            summary = await self.agent_service.summarize_paper(
+                topic="multi-agent security research",
+                paper=paper,
+                paper_text=source_text,
+            )
+            bullets = [self._normalize_bullet(point) for point in summary.key_points_summary if point.strip()]
+            if bullets:
+                return bullets[:5]
+        except Exception:
+            pass
+        return self._build_extractive_summary(source_text, paper.summary)
 
     async def _load_source_text(self, paper: Paper) -> str:
         if paper.pdf_url:

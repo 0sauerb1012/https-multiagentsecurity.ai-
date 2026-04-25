@@ -3,70 +3,41 @@
 {% block title %}multiagentsecurity.ai{% endblock %}
 
 {% block body %}
-  <main class="page-shell">
+  <main class="page-shell homepage-shell">
     <section class="hero hero-home hero-homepage">
       <div class="hero-copy">
-        <p class="eyebrow">A research site for a developing area</p>
-        <h1>Track multi-agent security as a research area.</h1>
+        <p class="eyebrow">Research index</p>
+        <h1>Multi-agent security research.</h1>
         <p class="lede">
-          This site collects current research, organizes papers by topic area, and provides supporting
-          reference material related to multi-agent security.
+          A focused index for recent papers, topic groupings, concepts, and trend signals related to
+          multi-agent security.
         </p>
         <div class="hero-actions">
           <a class="button-primary" href="/research-feed">Explore research feed</a>
-          <a class="button-secondary" href="/research-gaps">View research gaps</a>
+          <a class="button-secondary" href="/research-gaps">View research trends</a>
         </div>
       </div>
 
-      <div class="hero-stack">
-        <article class="hero-panel hero-signal-panel">
-          <p class="panel-eyebrow">What this site is</p>
-          <h2>Project scope</h2>
-          <p>
-            It is a project website that combines papers, concepts, tools, writing, and simple coverage
-            analysis for multi-agent security.
-          </p>
-        </article>
-
-        <article class="hero-panel hero-signal-panel">
-          <p class="panel-eyebrow">What users can do here</p>
-          <ul class="bullet-list">
-            <li>Track current papers across multiple scholarly feeds.</li>
-            <li>Find the important concepts and threat-model vocabulary.</li>
-            <li>See where the field is crowded and where it is still thin.</li>
-          </ul>
-        </article>
-      </div>
-    </section>
-
-    <section class="section-block section-why">
-      <div class="section-heading section-heading-tight">
-        <div>
-          <p class="eyebrow">Why this site exists</p>
-          <h2>Research on multi-agent security is distributed across multiple sources.</h2>
-        </div>
-      </div>
-      <div class="why-grid">
-        <p class="section-copy">
-          Relevant work appears across papers, preprints, benchmarks, vendor posts, talks, and practitioner
-          discussions. The main difficulty is that these materials are distributed across different venues.
+      <article class="hero-panel hero-signal-panel home-abstract-panel">
+        <p class="panel-eyebrow">Scope</p>
+        <p>
+          The site emphasizes recent literature, topic-level organization, and a small reference layer for
+          recurring concepts in agent security.
         </p>
-        <p class="section-copy">
-          The site is intended to provide a single place to review recent papers, reference concepts, and
-          examine simple category-level coverage within the current corpus.
+        <p>
+          It is intended to function more like a research index than a general-purpose product homepage.
         </p>
-      </div>
+      </article>
     </section>
 
     <section class="section-block">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">Navigate the hub</p>
-          <h2>Major sections</h2>
+          <p class="eyebrow">Sections</p>
+          <h2>Core views</h2>
         </div>
         <p class="section-copy">
-          The homepage links to the main parts of the site: recent papers, categorized literature,
-          coverage analysis, and reference material.
+          The main site views cover the latest papers, the categorized library, trend signals, and reference material.
         </p>
       </div>
 
@@ -84,11 +55,11 @@
     <section class="section-block taxonomy-showcase">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">Topic groupings</p>
-          <h2>First-pass library taxonomy</h2>
+          <p class="eyebrow">Library taxonomy</p>
+          <h2>Topic areas</h2>
         </div>
         <p class="section-copy">
-          Start with a topic area, then click through to explore the papers currently mapped into that part of the field.
+          Start with a topic area, then open the papers currently mapped into that part of the field.
         </p>
       </div>
 
@@ -109,8 +80,8 @@
       <div class="stack-card stack-card-strong">
         <div class="section-heading section-heading-tight">
           <div>
-            <p class="eyebrow">Research preview</p>
-            <h2>Current research signals</h2>
+            <p class="eyebrow">Recent papers</p>
+            <h2>Latest signals</h2>
           </div>
           <a class="inline-link" href="/research-feed">View all research</a>
         </div>
@@ -129,10 +100,10 @@
       <div class="stack-card stack-card-strong stack-card-intel">
         <div class="section-heading section-heading-tight">
           <div>
-            <p class="eyebrow">Research gaps / coverage</p>
-            <h2>Review where the current corpus is concentrated and where coverage is limited.</h2>
+            <p class="eyebrow">Research trends</p>
+            <h2>Current concentration and movement.</h2>
           </div>
-          <a class="inline-link" href="/research-gaps">Open gap analysis</a>
+          <a class="inline-link" href="/research-gaps">Open trend view</a>
         </div>
 
         <div class="intel-preview">
@@ -158,8 +129,8 @@
       <div class="stack-card">
         <div class="section-heading section-heading-tight">
           <div>
-            <p class="eyebrow">Recent writing</p>
-            <h2>Writing and commentary</h2>
+            <p class="eyebrow">Writing</p>
+            <h2>Recent notes</h2>
           </div>
           <a class="inline-link" href="/blog">Read the blog</a>
         </div>
@@ -178,8 +149,8 @@
       <div class="stack-card">
         <div class="section-heading section-heading-tight">
           <div>
-            <p class="eyebrow">Concepts / knowledge base</p>
-            <h2>Reference material for recurring concepts.</h2>
+            <p class="eyebrow">Concepts</p>
+            <h2>Reference notes</h2>
           </div>
           <a class="inline-link" href="/concepts">Explore concepts</a>
         </div>
@@ -193,17 +164,6 @@
           {% endfor %}
         </div>
       </div>
-    </section>
-
-    <section class="credibility-strip">
-      <div>
-        <p class="eyebrow">Current scope</p>
-        <h2>Tracking papers, concepts, coverage, experiments, and related questions in multi-agent security.</h2>
-      </div>
-      <p class="section-copy">
-        The long-term goal is to maintain a usable research record for multi-agent security that supports
-        reading, comparison, and further analysis.
-      </p>
     </section>
   </main>
 {% endblock %}

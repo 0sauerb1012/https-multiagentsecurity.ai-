@@ -24,7 +24,7 @@ SITE_NAV = [
         "children": [
             {"label": "Research Feed", "href": "/research-feed"},
             {"label": "Research Library", "href": "/research-library"},
-            {"label": "Research Gaps", "href": "/research-gaps"},
+            {"label": "Research Trends", "href": "/research-gaps"},
         ],
     },
     {
@@ -67,10 +67,10 @@ HOME_FEATURES = [
         "eyebrow": "Categorized literature",
     },
     {
-        "title": "Research gaps",
+        "title": "Research trends",
         "href": "/research-gaps",
-        "description": "Inspect category counts and identify areas with relatively high or low coverage in the stored corpus.",
-        "eyebrow": "Coverage analysis",
+        "description": "Inspect category momentum, concentration, and emerging areas in the stored corpus.",
+        "eyebrow": "Trend analysis",
     },
     {
         "title": "Concepts",
@@ -149,9 +149,9 @@ HOME_RESEARCH_PREVIEW = [
 ]
 
 HOME_GAP_PREVIEW = [
-    {"label": "Most concentrated", "value": "Prompt injection, orchestration risk"},
-    {"label": "Emerging", "value": "Trust scoring, evaluation benchmarks"},
-    {"label": "Needs more coverage", "value": "Agent identity, long-horizon governance"},
+    {"label": "Leading signals", "value": "Prompt injection, orchestration risk"},
+    {"label": "Building momentum", "value": "Trust scoring, evaluation benchmarks"},
+    {"label": "Early watchlist", "value": "Agent identity, long-horizon governance"},
 ]
 
 BLOG_POSTS = [

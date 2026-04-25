@@ -22,6 +22,12 @@ def parse_args() -> argparse.Namespace:
         default=60,
         help="Candidate papers to request per topic per source before merge/dedupe.",
     )
+    parser.add_argument(
+        "--years-back",
+        type=int,
+        default=5,
+        help="Only keep papers published within the last N years.",
+    )
     return parser.parse_args()
 
 
@@ -31,6 +37,7 @@ async def _main() -> None:
     result = await service.ingest_and_store(
         target_limit=args.target_limit,
         per_topic_limit=args.per_topic_limit,
+        years_back=args.years_back,
     )
     print("Batch ingestion completed.")
     for key, value in result.items():

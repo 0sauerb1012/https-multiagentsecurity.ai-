@@ -1,24 +1,25 @@
 {% extends "base.html" %}
 
-{% block title %}Research Gaps | multiagentsecurity.ai{% endblock %}
+{% block title %}Research Trends | multiagentsecurity.ai{% endblock %}
 
 {% block body %}
   <main class="page-shell">
     <section class="hero hero-page">
       <div class="hero-copy">
-        <p class="eyebrow">Research gaps</p>
-        <h1>Understand density, trends, and thin areas.</h1>
+        <p class="eyebrow">Research trends</p>
+        <h1>Understand concentration, momentum, and emerging directions.</h1>
         <p class="lede">
-          This page is the research-intelligence layer: where the site can eventually expose topic concentration,
-          trend analysis, and underexplored parts of the multi-agent security landscape.
+          This page is the research-intelligence layer: a quick way to see which multi-agent security areas
+          are leading the current corpus, which ones are building momentum, and which ones still sit earlier
+          in the trend curve.
         </p>
       </div>
       <div class="hero-panel">
-        <p class="panel-eyebrow">Future chart slots</p>
+        <p class="panel-eyebrow">Trend signals</p>
         <ul class="bullet-list">
-          <li>Topic concentration graph and timeline modules.</li>
-          <li>Gap scoring, source diversity, and recency signals.</li>
-          <li>Entry points into area-specific paper lists and downstream experiments.</li>
+          <li>Trend board for leading, rising, and early-stage topic clusters.</li>
+          <li>Timeline-style visual weighting based on current concentration in the corpus.</li>
+          <li>Direct links into each area so the trend view stays connected to the underlying papers.</li>
         </ul>
       </div>
     </section>
@@ -30,26 +31,64 @@
     {% endif %}
 
     {% if heatmap_rows %}
-      <section class="insights-slab">
-        <div class="insight-card">
-          <span class="insight-heading">Most researched</span>
-          <p>{{ concentration_labels | join(", ") if concentration_labels else "No strong concentration clusters yet." }}</p>
+      <section class="trend-stage">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Trend board</p>
+            <h2>Current topic momentum</h2>
+          </div>
+          <p class="section-copy">
+            This is a directional read on the stored corpus rather than a formal forecast. Larger tracks indicate
+            stronger concentration in the current article set.
+          </p>
         </div>
-        <div class="insight-card">
-          <span class="insight-heading">Needs more coverage</span>
-          <p>{{ gap_labels | join(", ") if gap_labels else "No obvious gaps in the current snapshot." }}</p>
-        </div>
-        <div class="insight-card">
-          <span class="insight-heading">Chart modules</span>
-          <p>Placeholders are ready for trend lines, gap scoring, and concentration visualizations as the data layer matures.</p>
+
+        <div class="trend-board">
+          {% for row in heatmap_rows[:6] %}
+            <article class="trend-card">
+              <div class="trend-card-head">
+                <div>
+                  <p class="trend-card-label">
+                    {% if row.status == "High concentration" %}
+                      Leading signal
+                    {% elif row.status == "Gap / underexplored" %}
+                      Early watchlist
+                    {% else %}
+                      Building momentum
+                    {% endif %}
+                  </p>
+                  <h3><a class="coverage-link" href="/areas/{{ row.slug }}">{{ row.category }}</a></h3>
+                </div>
+                <span class="coverage-count {% if row.status == 'High concentration' %}coverage-count-high{% elif row.status == 'Gap / underexplored' %}coverage-count-low{% else %}coverage-count-mid{% endif %}">
+                  {{ row.count }}
+                </span>
+              </div>
+
+              <div class="trend-line" aria-hidden="true">
+                <span class="trend-line-track"></span>
+                <span class="trend-line-fill {% if row.status == 'High concentration' %}trend-line-fill-high{% elif row.status == 'Gap / underexplored' %}trend-line-fill-low{% else %}trend-line-fill-mid{% endif %}" style="width: {{ (22 + (row.intensity * 78)) | round(0, 'ceil') }}%;"></span>
+                <span class="trend-line-node {% if row.status == 'High concentration' %}trend-line-node-high{% elif row.status == 'Gap / underexplored' %}trend-line-node-low{% else %}trend-line-node-mid{% endif %}" style="left: {{ (22 + (row.intensity * 78)) | round(0, 'ceil') }}%;"></span>
+              </div>
+
+              <p class="trend-card-copy">
+                {% if row.status == "High concentration" %}
+                  Strong current attention relative to the rest of the tracked research landscape.
+                {% elif row.status == "Gap / underexplored" %}
+                  Present in the corpus, but still earlier-stage compared with the dominant themes.
+                {% else %}
+                  Active and visible, with room to become a more central thread in the literature.
+                {% endif %}
+              </p>
+            </article>
+          {% endfor %}
         </div>
       </section>
 
       <section class="table-panel">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Coverage view</p>
-            <h2>Current subarea concentration</h2>
+            <p class="eyebrow">Taxonomy detail</p>
+            <h2>Current topic breakdown</h2>
           </div>
           <p class="section-copy">
             Click a row to open the papers currently mapped into that multi-agent security area.
@@ -62,8 +101,8 @@
               <tr>
                 <th>Area</th>
                 <th>Papers</th>
-                <th>Status</th>
-                <th>Coverage note</th>
+                <th>Trend signal</th>
+                <th>Interpretation</th>
               </tr>
             </thead>
             <tbody>
@@ -78,11 +117,11 @@
                   <td>{{ row.status }}</td>
                   <td>
                     {% if row.status == "High concentration" %}
-                      Dense current research activity relative to the rest of the tracked landscape.
+                      Leading current theme with the strongest concentration in the stored corpus.
                     {% elif row.status == "Gap / underexplored" %}
-                      Thin current coverage and a good candidate for deliberate exploration.
+                      Earlier-stage signal that is still comparatively light in the current literature set.
                     {% else %}
-                      Active enough to matter, but still open for stronger synthesis and coverage.
+                      Visible and active, but not yet as dominant as the leading categories.
                     {% endif %}
                   </td>
                 </tr>

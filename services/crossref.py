@@ -22,13 +22,18 @@ class CrossrefClient:
         query: str,
         *,
         rows: int = 10,
+        offset: int = 0,
+        from_pub_date: str | None = None,
     ) -> CrossrefSearchResult:
         params = {
             "query": query,
-            "rows": max(1, min(rows, settings.max_results_limit * 3)),
+            "rows": max(1, min(rows, 200)),
+            "offset": max(0, offset),
             "sort": "published",
             "order": "desc",
         }
+        if from_pub_date:
+            params["filter"] = f"from-pub-date:{from_pub_date}"
         headers: dict[str, str] = {}
         if settings.crossref_email:
             headers["User-Agent"] = (

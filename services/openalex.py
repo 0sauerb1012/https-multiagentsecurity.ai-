@@ -22,12 +22,20 @@ class OpenAlexClient:
         query: str,
         *,
         per_page: int = 10,
+        page: int = 1,
+        from_publication_date: str | None = None,
     ) -> OpenAlexSearchResult:
         params = {
             "search": query,
-            "per-page": max(1, min(per_page, settings.max_results_limit * 3)),
+            "per-page": max(1, min(per_page, 200)),
+            "page": max(1, page),
             "sort": "publication_date:desc",
         }
+        filters: list[str] = []
+        if from_publication_date:
+            filters.append(f"from_publication_date:{from_publication_date}")
+        if filters:
+            params["filter"] = ",".join(filters)
         if settings.openalex_email:
             params["mailto"] = settings.openalex_email
 
