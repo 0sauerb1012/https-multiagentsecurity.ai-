@@ -8,18 +8,9 @@
       <p class="eyebrow">Blog post</p>
       <h1>{{ post.title }}</h1>
       <p class="item-meta">{{ post.date }}</p>
-      <p class="lede">
-        {{ post.summary }}
-      </p>
+      <p class="lede">{{ post.summary }}</p>
       <div class="article-body">
-        <p>
-          This is a placeholder template for longer posts. Future posts can include fuller text, references,
-          diagrams, and links to the research feed, library, and concept pages.
-        </p>
-        <p>
-          The page layout is intended to support extended reading with a simple structure and clear links to
-          related materials elsewhere on the site.
-        </p>
+        {{ post.content_html | safe }}
       </div>
     </article>
   </main>

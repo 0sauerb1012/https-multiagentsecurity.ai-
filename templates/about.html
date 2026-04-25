@@ -3,53 +3,52 @@
 {% block title %}About Benjamin Sauers | multiagentsecurity.ai{% endblock %}
 
 {% block body %}
-  <main class="page-shell">
-    <section class="hero hero-page">
-      <div class="hero-copy">
+  <main class="page-shell about-shell">
+    <section class="hero hero-page about-hero">
+      <div class="hero-copy about-hero-copy">
         <p class="eyebrow">About</p>
         <h1>{{ profile.name }}</h1>
-        <p class="lede">
-          {{ profile.role }}
-        </p>
-        <p>{{ profile.bio }}</p>
-        <p>
-          <a href="{{ profile.linkedin_url }}" target="_blank" rel="noreferrer">View LinkedIn profile</a>
-        </p>
+        {% if profile.role %}
+          <p class="lede about-hero-lede">
+            {{ profile.role }}
+          </p>
+        {% endif %}
+        <p class="about-summary">{{ profile.bio }}</p>
+        <a class="about-link-pill" href="{{ profile.linkedin_url }}" target="_blank" rel="noreferrer">View LinkedIn profile</a>
       </div>
     </section>
 
-    <section class="section-split">
-      <div class="stack-card">
+    <section class="section-split about-grid">
+      <div class="stack-card about-panel">
         <p class="eyebrow">Profile</p>
         <h2>Current focus</h2>
-        <div class="compact-list">
-          <article class="compact-item">
-            <h3>Location</h3>
+        <div class="about-profile-grid">
+          <article class="about-detail-card">
+            <span class="about-detail-label">Based in</span>
             <p>{{ profile.location }}</p>
           </article>
-          <article class="compact-item">
-            <h3>Current role</h3>
+          <article class="about-detail-card">
+            <span class="about-detail-label">Role</span>
             <p>Cybersecurity professional at Rocket</p>
           </article>
-          <article class="compact-item">
-            <h3>Academic work</h3>
+          <article class="about-detail-card">
+            <span class="about-detail-label">Academic work</span>
             <p>PhD student at Eastern Michigan University</p>
           </article>
+        </div>
+        <div class="about-focus-list" aria-label="Focus areas">
           {% for area in focus_areas %}
-            <article class="compact-item">
-              <h3>{{ area }}</h3>
-            </article>
+            <span class="about-focus-item">{{ area }}</span>
           {% endfor %}
         </div>
       </div>
-      <div class="stack-card">
+      <div class="stack-card about-panel">
         <p class="eyebrow">Education</p>
-        <div class="compact-list">
-          <article class="compact-item">
-            <h3>{{ education.school }}</h3>
-          </article>
+        <h2>{{ education.school }}</h2>
+        <div class="about-education-list">
           {% for item in education["items"] %}
-            <article class="compact-item">
+            <article class="about-education-item">
+              <span class="about-timeline-dot" aria-hidden="true"></span>
               <p>{{ item }}</p>
             </article>
           {% endfor %}
@@ -58,25 +57,15 @@
     </section>
 
     <section class="section-split">
-      <div class="stack-card">
+      <div class="stack-card about-panel about-credentials-card">
         <p class="eyebrow">Credentials</p>
-        <div class="compact-list">
+        <div class="about-credentials-list">
           {% for certification in certifications %}
-            <article class="compact-item">
+            <article class="about-credential-item">
               <h3>{{ certification }}</h3>
             </article>
           {% endfor %}
         </div>
-      </div>
-      <div class="stack-card">
-        <p class="eyebrow">Contact</p>
-        <h2>Professional profile</h2>
-        <p>
-          The easiest place to review Benjamin Sauers' current experience, credentials, and updates is LinkedIn.
-        </p>
-        <p>
-          <a href="{{ profile.linkedin_url }}" target="_blank" rel="noreferrer">{{ profile.linkedin_url }}</a>
-        </p>
       </div>
     </section>
   </main>

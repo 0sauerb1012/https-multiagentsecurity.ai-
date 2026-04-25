@@ -5,7 +5,7 @@ from io import StringIO
 from pathlib import Path
 from urllib.parse import quote_plus
 
-from fastapi import APIRouter, Form, Query, Request
+from fastapi import APIRouter, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 
@@ -35,16 +35,12 @@ SITE_NAV = [
         "label": "Signals",
         "href": "/industry-intel",
         "children": [
-            {"label": "Industry Intel", "href": "/industry-intel"},
             {"label": "Blog", "href": "/blog"},
         ],
     },
     {
         "label": "About",
         "href": "/about",
-        "children": [
-            {"label": "Talks / About", "href": "/about"},
-        ],
     },
 ]
 
@@ -72,12 +68,6 @@ HOME_FEATURES = [
         "href": "/concepts",
         "description": "Read short concept notes on topics such as prompt injection, trust scoring, and agent identity.",
         "eyebrow": "Reference material",
-    },
-    {
-        "title": "Industry intel",
-        "href": "/industry-intel",
-        "description": "Track non-academic sources such as incident reports, vendor publications, and practitioner commentary.",
-        "eyebrow": "External sources",
     },
     {
         "title": "Talks / about",
@@ -149,24 +139,139 @@ HOME_GAP_PREVIEW = [
     {"label": "Early watchlist", "value": "Agent identity, long-horizon governance"},
 ]
 
-BLOG_POSTS = [
+BLOG_POSTS: list[dict[str, str]] = [
     {
-        "slug": "mapping-the-multi-agent-security-surface",
-        "title": "Mapping the multi-agent security surface",
-        "date": "2026-04-05",
-        "summary": "A framing post on why multi-agent security needs its own research map rather than being treated as a subset of generic LLM safety.",
-    },
-    {
-        "slug": "why-agent-orchestration-changes-the-threat-model",
-        "title": "Why agent orchestration changes the threat model",
-        "date": "2026-03-22",
-        "summary": "An operator-focused look at how planner chains, delegated tools, and memory systems create new coordination risks.",
-    },
-    {
-        "slug": "toward-a-live-research-hub-for-agent-security",
-        "title": "Toward a live research hub for agent security",
-        "date": "2026-02-18",
-        "summary": "Notes on building an intelligence surface that merges papers, concepts, incidents, and practical tooling into one place.",
+        "slug": "a-tiny-multi-agent-experiment-that-explains-multi-agent-systems",
+        "title": "A Tiny Multi-Agent Experiment That Explains Multi-Agent Systems",
+        "date": "2026-03-07",
+        "summary": (
+            "A small LangChain-based experiment that uses a research agent, writer agent, editor agent, "
+            "and coordinator to show why orchestration and role specialization matter in multi-agent systems."
+        ),
+        "content_html": """
+<p><strong>Framework used</strong></p>
+<ul class="article-list">
+  <li>Lightweight Python + LangChain setup</li>
+  <li><code>langchain-openai</code> with a shared <code>ChatOpenAI</code> model (<code>gpt-4o-mini</code>)</li>
+  <li>Role-specific system prompts for each agent</li>
+  <li>A simple coordinator in <code>app.py</code> to run the pipeline</li>
+  <li>Repository: <a class="post-link" href="https://github.com/0sauerb1012/simplemultiagentsystem" target="_blank" rel="noopener noreferrer">simplemultiagentsystem</a></li>
+</ul>
+<p><strong>The system architecture</strong><br />The system runs as a simple sequential pipeline:</p>
+<div class="flow-diagram" aria-label="Multi-agent pipeline diagram">
+  <p class="flow-caption">Pipeline Execution Graph</p>
+  <div class="flow-steps">
+    <div class="flow-step">
+      <span class="flow-step-num">S1</span>
+      <div class="flow-step-body">
+        <p class="flow-step-text">Input: User Question</p>
+        <p class="flow-step-meta">artifact: raw query</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="flow-step-num">S2</span>
+      <div class="flow-step-body">
+        <p class="flow-step-text">Research Agent</p>
+        <p class="flow-step-meta">artifact: concise notes</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="flow-step-num">S3</span>
+      <div class="flow-step-body">
+        <p class="flow-step-text">Writer Agent (Draft)</p>
+        <p class="flow-step-meta">artifact: initial explanation</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="flow-step-num">S4</span>
+      <div class="flow-step-body">
+        <p class="flow-step-text">Editor Agent</p>
+        <p class="flow-step-meta">artifact: critique + revision requests</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="flow-step-num">S5</span>
+      <div class="flow-step-body">
+        <p class="flow-step-text">Writer Agent (Revision)</p>
+        <p class="flow-step-meta">artifact: improved explanation</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="flow-step-num">S6</span>
+      <div class="flow-step-body">
+        <p class="flow-step-text">Coordinator</p>
+        <p class="flow-step-meta">artifact: final answer</p>
+      </div>
+    </div>
+  </div>
+</div>
+<p>The Coordinator manages the workflow by:</p>
+<ul class="article-list">
+  <li>Passing outputs between agents</li>
+  <li>Controlling execution order</li>
+  <li>Printing the final results</li>
+</ul>
+<p>This keeps each agent simple, while the pipeline stays clear and easy to follow.</p>
+<p><strong>Why multi-agent systems matter</strong><br />Single-agent AI can do a lot: answer questions, summarize, and write code. But when a task gets more complex, it often helps to split the work up.</p>
+<p>That is the core idea behind multi-agent systems: instead of one "do everything" prompt, you assign roles. Each role focuses on one part of the problem, and the pieces are combined into a better final result.</p>
+<p>In this post, we walk through a small, runnable-style experiment that shows how a simple group of agents can collaborate to create a clearer explanation than a single prompt alone.</p>
+<p>This is the first post in a series. I will start here, build out a simple multi-agent system, and slowly add capabilities to make it more robust. Along the way I will introduce security considerations. The goal is both personal experimentation and a ride along for those interested in multi-agent systems and security.</p>
+<p><strong>What is a multi-agent system?</strong><br />A multi-agent system (MAS) is an AI setup where multiple agents collaborate to solve a problem.</p>
+<ul class="article-list">
+  <li>A specific role</li>
+  <li>A focused responsibility</li>
+  <li>A clear handoff to the next agent</li>
+</ul>
+<p>Instead of one model trying to do everything at once, work is distributed across specialized roles. A quick analogy is a content team:</p>
+<ul class="article-list">
+  <li>Researcher: gathers facts</li>
+  <li>Writer: produces a draft</li>
+  <li>Editor: reviews and improves it</li>
+</ul>
+<p>A multi-agent system works the same way, only the team members are agents.</p>
+<p><strong>The goal of this experiment</strong><br />Use a small multi-agent system to answer one question: "What is a multi-agent system?"</p>
+<p>To keep it educational and focused, the experiment uses these constraints:</p>
+<ul class="article-list">
+  <li>Minimal architecture</li>
+  <li>The same LLM powers all agents</li>
+  <li>No tools</li>
+  <li>No memory</li>
+  <li>No RAG</li>
+  <li>No web search</li>
+</ul>
+<p>This isolates the real lesson: orchestration plus role specialization.</p>
+<p><strong>Agent roles (what each one does)</strong></p>
+<ul class="article-list">
+  <li>Research Agent: produces concise bullet notes about the question to give the writer useful context</li>
+  <li>Writer Agent: turns notes into a readable explanation (draft, then revision based on editor feedback)</li>
+  <li>Editor Agent: reviews the draft and suggests improvements; critiques only and does not rewrite</li>
+  <li>Coordinator: orchestrates the process and ensures execution order, visibility, and logging</li>
+</ul>
+<p><strong>Making collaboration visible</strong><br />To make teamwork easy to understand, the program prints each stage:</p>
+<ul class="article-list">
+  <li>USER QUESTION</li>
+  <li>RESEARCH NOTES</li>
+  <li>DRAFT EXPLANATION</li>
+  <li>EDITOR FEEDBACK</li>
+  <li>REVISED EXPLANATION</li>
+  <li>FINAL ANSWER</li>
+</ul>
+<p>This turns the system into a learning tool. Instead of a black box, you can watch the explanation improve step-by-step.</p>
+<p><strong>Logging and traceability</strong><br />The experiment produces two helpful logs:</p>
+<ul class="article-list">
+  <li>Detailed interaction log (<code>.log</code>): prompts, agent responses, and handoff messages</li>
+  <li>Execution trace (<code>_trace.md</code>): a clean, step-by-step record of the pipeline</li>
+</ul>
+<p>Useful for debugging, inspecting behavior, and visualizing how information moves through the system.</p>
+<p><strong>Lessons from the experiment</strong></p>
+<ul class="article-list">
+  <li>Specialization improves clarity: roles create more structured output</li>
+  <li>Review loops improve quality: editor to writer revision boosts the final explanation</li>
+  <li>Multi-agent value shows up fast: benefits appear without complicated infrastructure</li>
+</ul>
+<p><strong>Closing thoughts</strong><br />Multi-agent systems are not about making AI more complicated. They are about structured collaboration. Even a small pipeline like this demonstrates the key advantage: divide the work, specialize roles, and improve results through review.</p>
+<p>If you want to try it yourself, modify the code and ask new questions. You may be surprised how far a simple agent workflow can go.</p>
+""",
     },
 ]
 
@@ -371,8 +476,8 @@ TALKS = [
 
 ABOUT_PROFILE = {
     "name": "Benjamin Sauers",
-    "location": "Ypsilanti, Michigan",
-    "role": "PhD student at Eastern Michigan University and cybersecurity professional at Rocket, focused on cloud-native technologies and AI.",
+    "location": "Michigan",
+    "role": "",
     "linkedin_url": "https://www.linkedin.com/in/benjamin-sauers",
     "bio": (
         "Benjamin Sauers is a Michigan-based PhD student at Eastern Michigan University and a cybersecurity "
@@ -392,14 +497,16 @@ ABOUT_FOCUS_AREAS = [
 ABOUT_EDUCATION = {
     "school": "Eastern Michigan University",
     "items": [
-        "M.S. in Cybersecurity, Eastern Michigan University",
-        "PhD studies in progress at Eastern Michigan University",
         "Research focus: cybersecurity, applied computing, and multi-agent systems",
+        "PhD studies in progress at Eastern Michigan University",
+        "M.S. in Cybersecurity, Eastern Michigan University",
+        "M.A. in Teaching, University of Saint Francis",
     ],
 }
 
 ABOUT_CERTIFICATIONS = [
     "AWS Certified Cloud Practitioner",
+    "AWS Certified Solutions Architect - Associate",
     "CompTIA PenTest+",
     "CompTIA Security+",
     "CompTIA CySA+",
@@ -525,7 +632,9 @@ async def blog_index(request: Request) -> HTMLResponse:
 
 @router.get("/blog/{slug}", response_class=HTMLResponse)
 async def blog_post(request: Request, slug: str) -> HTMLResponse:
-    post = next((item for item in BLOG_POSTS if item["slug"] == slug), BLOG_POSTS[0])
+    post = next((item for item in BLOG_POSTS if item["slug"] == slug), None)
+    if post is None:
+        raise HTTPException(status_code=404, detail="Blog post not found.")
     return templates.TemplateResponse(
         request,
         "blog_post.html",

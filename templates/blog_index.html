@@ -7,21 +7,25 @@
     <section class="hero hero-page">
       <div class="hero-copy">
         <p class="eyebrow">Blog</p>
-        <h1>Writing related to the project.</h1>
-        <p class="lede">
-          This section contains short essays, commentary, and synthesis pieces related to multi-agent security.
-        </p>
+        <h1>Blog posts related and adjacent to MAS.</h1>
       </div>
     </section>
 
     <section class="content-stack">
-      {% for post in posts %}
+      {% if posts %}
+        {% for post in posts %}
+          <article class="post-card">
+            <p class="item-meta">{{ post.date }}</p>
+            <h2><a href="/blog/{{ post.slug }}">{{ post.title }}</a></h2>
+            <p>{{ post.summary }}</p>
+          </article>
+        {% endfor %}
+      {% else %}
         <article class="post-card">
-          <p class="item-meta">{{ post.date }}</p>
-          <h2><a href="/blog/{{ post.slug }}">{{ post.title }}</a></h2>
-          <p>{{ post.summary }}</p>
+          <h2>No posts published yet.</h2>
+          <p>The blog is being updated. New writing will appear here once it is ready.</p>
         </article>
-      {% endfor %}
+      {% endif %}
     </section>
   </main>
 {% endblock %}
