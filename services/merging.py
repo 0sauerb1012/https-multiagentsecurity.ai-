@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 
 from api.app.models import Paper, SourceRecord
+from .date_utils import clamp_future_year
 
 
 @dataclass(frozen=True)
@@ -140,7 +141,7 @@ class PaperMergingService:
         return ranked[0].summary if ranked else ""
 
     def _prefer_date(self, records: list[Paper], *, earliest: bool) -> str:
-        values = [record.published if earliest else record.updated for record in records]
+        values = [clamp_future_year(record.published if earliest else record.updated) for record in records]
         clean = sorted(value for value in values if value)
         if not clean:
             return ""
@@ -214,7 +215,7 @@ class PaperMergingService:
             title=record.title,
             summary=record.summary,
             authors=record.authors,
-            published=record.published,
+            published=clamp_future_year(record.published),
             doi=record.doi,
             arxiv_id=record.arxiv_id,
             venue=record.venue,

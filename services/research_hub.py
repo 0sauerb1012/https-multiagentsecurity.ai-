@@ -15,6 +15,7 @@ from api.app.services.ranking import rank_papers
 from .categorization import HUB_CATEGORY_LABELS, PaperCategorizationService
 from .crossref import CrossrefClient
 from .database import DatabaseService
+from .date_utils import clamp_future_year
 from .dblp import DblpClient
 from .hub_types import (
     HeatmapRow,
@@ -74,6 +75,32 @@ class ResearchHubService:
             return stored_snapshot
         return await self._build_snapshot(limit=limit)
 
+    def fetch_stored_latest_papers(self, *, limit: int = 12) -> ResearchHubResult:
+        stored_snapshot = self._build_stored_snapshot(limit=limit)
+        if stored_snapshot is None:
+            raise ValueError("No stored papers are available yet. Run ingestion to populate the local database.")
+        return stored_snapshot
+
+    def fetch_stored_latest_papers_by_source(self, *, source_filter: str, limit: int = 12) -> ResearchHubResult:
+        if not self.database_service.has_persisted_papers():
+            raise ValueError("No stored papers are available yet. Run ingestion to populate the local database.")
+        cards = self.database_service.load_cards_by_source(source_filter=source_filter, limit=limit)
+        heatmap_rows, gap_labels, concentration_labels = self._build_heatmap(cards)
+        landscape_nodes, landscape_edges = self._build_landscape(cards, heatmap_rows)
+        return ResearchHubResult(
+            cards=cards,
+            feed_label=f'Stored multi-agent security corpus · {source_filter}',
+            tracked_topics=[topic.label for topic in BROAD_AGENTIC_AI_TOPICS],
+            heatmap_rows=heatmap_rows,
+            landscape_nodes=landscape_nodes,
+            landscape_edges=landscape_edges,
+            gap_labels=gap_labels,
+            concentration_labels=concentration_labels,
+        )
+
+    def fetch_stored_sources(self) -> list[str]:
+        return self.database_service.load_available_sources()
+
     async def fetch_library_groups(self, *, limit: int = 24) -> list[LibraryCategoryGroup]:
         if self.database_service.has_persisted_papers():
             return self.database_service.load_library_groups()
@@ -98,7 +125,7 @@ class ResearchHubService:
         self,
         *,
         area_slug: str,
-        limit: int = 36,
+        limit: int | None = 36,
     ) -> tuple[str, list[PaperCard]]:
         if self.database_service.has_persisted_papers():
             return self.database_service.load_area_cards(area_slug=area_slug, limit=limit)
@@ -125,6 +152,18 @@ class ResearchHubService:
                 concentration_labels=concentration_labels,
             )
         return await self._build_snapshot(limit=12)
+
+    async def fetch_paper_card(self, *, canonical_id: str) -> PaperCard:
+        if self.database_service.has_persisted_papers():
+            stored = self.database_service.load_card_by_canonical_id(canonical_id)
+            if stored is not None:
+                return stored
+
+        snapshot = await self._build_snapshot(limit=60)
+        for card in snapshot.cards:
+            if (card.paper.canonical_id or card.paper.id) == canonical_id:
+                return card
+        raise ValueError("Unknown paper.")
 
     async def ingest_and_store(
         self,
@@ -628,7 +667,7 @@ class ResearchHubService:
     @staticmethod
     def _parse_datetime(value: str) -> datetime:
         try:
-            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(clamp_future_year(value).replace("Z", "+00:00"))
             if parsed.tzinfo is None:
                 return parsed.replace(tzinfo=timezone.utc)
             return parsed

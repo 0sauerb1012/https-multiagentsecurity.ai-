@@ -11,6 +11,7 @@ import sqlite3
 from api.app.config import settings
 from api.app.models import ReviewedPaper, SourceRecord
 
+from .date_utils import clamp_future_year
 from .hub_types import HeatmapRow, LibraryCategoryGroup, PaperCard
 
 
@@ -166,8 +167,8 @@ class DatabaseService:
                         paper.canonical_id or paper.id,
                         paper.title,
                         paper.summary,
-                        paper.published,
-                        paper.updated,
+                        clamp_future_year(paper.published),
+                        clamp_future_year(paper.updated),
                         self._dump_json(paper.authors),
                         self._dump_json(paper.categories),
                         self._dump_json(paper.hub_categories),
@@ -215,11 +216,43 @@ class DatabaseService:
             rows = connection.execute(query, params).fetchall()
         return [self._row_to_card(row) for row in rows]
 
-    def load_area_cards(self, *, area_slug: str, limit: int) -> tuple[str, list[PaperCard]]:
+    def load_cards_by_source(self, *, source_filter: str, limit: int | None = None) -> list[PaperCard]:
+        cards = self.load_cards()
+        normalized_filter = source_filter.strip().lower()
+        matching = [card for card in cards if normalized_filter in self._source_keys_for_card(card)]
+        if limit is not None:
+            return matching[:limit]
+        return matching
+
+    def load_available_sources(self) -> list[str]:
+        cards = self.load_cards()
+        sources: set[str] = set()
+        for card in cards:
+            sources.update(self._source_keys_for_card(card))
+        return sorted(sources)
+
+    def load_card_by_canonical_id(self, canonical_id: str) -> PaperCard | None:
+        self.initialize()
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT * FROM papers
+                WHERE canonical_id = ? AND is_fit = 1
+                LIMIT 1
+                """,
+                (canonical_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_card(row)
+
+    def load_area_cards(self, *, area_slug: str, limit: int | None = None) -> tuple[str, list[PaperCard]]:
         cards = self.load_cards()
         for group in self.load_library_groups():
             if group.slug == area_slug:
-                matching = [card for card in cards if group.category in card.paper.hub_categories][:limit]
+                matching = [card for card in cards if group.category in card.paper.hub_categories]
+                if limit is not None:
+                    matching = matching[:limit]
                 return group.category, matching
         raise ValueError("Unknown research area.")
 
@@ -308,8 +341,8 @@ class DatabaseService:
             canonical_id=row["canonical_id"],
             title=row["title"],
             summary=row["summary"],
-            published=row["published"],
-            updated=row["updated"],
+            published=clamp_future_year(row["published"]),
+            updated=clamp_future_year(row["updated"]),
             authors=self._load_json(row["authors_json"]),
             categories=self._load_json(row["categories_json"]),
             hub_categories=self._load_json(row["hub_categories_json"]),
@@ -362,3 +395,13 @@ class DatabaseService:
             .replace("/", "-")
             .replace(" ", "-")
         )
+
+    @staticmethod
+    def _source_keys_for_card(card: PaperCard) -> set[str]:
+        sources: set[str] = set()
+        if card.paper.source_name:
+            sources.add(card.paper.source_name.split("·")[0].strip().lower())
+        for source in card.paper.merged_from_sources:
+            if source:
+                sources.add(source.strip().lower())
+        return sources

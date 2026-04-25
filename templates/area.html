@@ -4,12 +4,14 @@
   <main class="page-shell">
     <section class="hero hero-page">
       <p class="eyebrow">Research area drill-down</p>
+      <div class="hero-actions">
+        <a class="button-secondary" href="/">Back to homepage</a>
+      </div>
       <h1>{{ area_label }}</h1>
       <p class="lede">
         Papers currently mapped into this multi-agent security subarea from the merged research feed.
       </p>
       <p class="meta"><strong>Active feeds:</strong> {{ active_source_feeds | join(", ") }}</p>
-      <p class="meta"><a class="paper-link" href="/">Back to multiagentsecurity.ai</a></p>
     </section>
 
     {% if error %}
@@ -18,61 +20,189 @@
       </section>
     {% endif %}
 
-    {% if cards %}
-      <section class="results">
-        {% for card in cards %}
-          <article class="paper-card">
-            <div class="paper-header">
-              <div>
-                <h2>{{ card.paper.title }}</h2>
-                <div class="pill-row">
-                  <span class="pill pill-source">{{ card.paper.source_name }}</span>
-                  <span class="pill pill-type">{{ card.paper.source_type }}</span>
-                  {% if card.paper.merged_from_sources %}
-                    {% for source in card.paper.merged_from_sources %}
-                      <span class="pill pill-merged">{{ source }}</span>
-                    {% endfor %}
-                  {% endif %}
-                  {% for category in card.paper.hub_categories %}
-                    <span class="pill pill-category">{{ category }}</span>
-                  {% endfor %}
-                </div>
-                <p class="meta">
-                  {{ card.paper.authors | join(", ") if card.paper.authors else "Unknown authors" }}
-                </p>
-                <p class="meta">Published {{ card.paper.published[:10] if card.paper.published else "Unknown date" }}</p>
-                {% if card.paper.venue %}
-                  <p class="meta"><strong>Venue:</strong> {{ card.paper.venue }}</p>
-                {% endif %}
-                {% if card.paper.doi %}
-                  <p class="meta"><strong>DOI:</strong> {{ card.paper.doi }}</p>
-                {% endif %}
-              </div>
-              <a class="paper-link" href="{{ card.paper.paper_url }}" target="_blank" rel="noreferrer">Open Source Record</a>
-            </div>
+    <section class="control-panel area-filter-panel">
+      <form method="get" class="controls area-filter-controls">
+        <input type="hidden" name="limit" value="{{ limit }}" />
+        <div class="field area-filter-search">
+          <label for="q">Search the full library</label>
+          <input
+            id="q"
+            name="q"
+            type="text"
+            value="{{ search_query or '' }}"
+            placeholder="Search all stored titles or bullet summaries"
+          />
+        </div>
+        <div class="field field-small area-filter-source">
+          <label for="source">Source</label>
+          <select id="source" name="source">
+            <option value="">All sources</option>
+            {% for source_name in available_sources %}
+              <option value="{{ source_name }}" {% if selected_source == source_name %}selected{% endif %}>
+                {{ source_name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit">Search papers</button>
+      </form>
+    </section>
 
-            <div class="paper-body">
-              <div>
-                <h3>Abstract</h3>
-                <p>{{ card.paper.summary }}</p>
-              </div>
-
-              <div>
-                <h3>Bullet Summary</h3>
-                <ul>
-                  {% for bullet in card.bullets %}
-                    <li>{{ bullet }}</li>
-                  {% endfor %}
-                </ul>
-              </div>
-            </div>
-          </article>
-        {% endfor %}
+    {% if search_query %}
+      <section class="message message-subtle">
+        <p><strong>{{ match_count }}</strong> matches{% if search_query %} for "{{ search_query }}"{% endif %}{% if selected_source %} in {{ selected_source }}{% endif %}</p>
       </section>
+    {% elif selected_source %}
+      <section class="message message-subtle">
+        <p><strong>{{ match_count }}</strong> papers in {{ selected_source }}</p>
+      </section>
+    {% endif %}
+
+    {% if cards %}
+      <form method="post" action="/areas/{{ area_slug }}/export" class="area-export-form">
+        <input type="hidden" name="limit" value="{{ limit }}" />
+        <input type="hidden" name="q" value="{{ search_query or '' }}" />
+        <input type="hidden" name="source" value="{{ selected_source or '' }}" />
+
+        <section class="control-panel area-export-panel">
+          <div class="area-export-selection">
+            <div class="selection-actions">
+              <button id="select-all-papers" type="button" class="button-secondary area-selection-button">
+                Select all shown
+              </button>
+              <button id="clear-all-papers" type="button" class="button-secondary area-selection-button">
+                Clear selection
+              </button>
+            </div>
+            <p class="meta"><span id="selected-paper-count">0</span> of {{ cards | length }} articles selected</p>
+            <p class="meta">Showing {{ cards | length }} of {{ total_available }} matching articles</p>
+          </div>
+          <div class="area-export-actions">
+            <button type="submit" name="export_format" value="csv" class="button-secondary area-export-button">
+              Export CSV
+            </button>
+            <button type="submit" name="export_format" value="zotero" class="button-secondary area-export-button">
+              Export Zotero file
+            </button>
+          </div>
+        </section>
+
+        <section class="results">
+          {% for card in cards %}
+            <article class="paper-card">
+              <div class="paper-card-selection">
+                <label class="paper-select" for="paper-{{ loop.index }}">
+                  <input
+                    id="paper-{{ loop.index }}"
+                    class="paper-select-input"
+                    type="checkbox"
+                    name="paper_id"
+                    value="{{ card.paper.canonical_id or card.paper.id }}"
+                  />
+                  <span>Select article</span>
+                </label>
+              </div>
+
+              <div class="paper-header">
+                <div>
+                  <h2>{{ card.paper.title }}</h2>
+                  <div class="pill-row">
+                    <span class="pill pill-source">{{ card.paper.source_name }}</span>
+                    <span class="pill pill-type">{{ card.paper.source_type }}</span>
+                    {% if card.paper.merged_from_sources %}
+                      {% for source in card.paper.merged_from_sources %}
+                        <span class="pill pill-merged">{{ source }}</span>
+                      {% endfor %}
+                    {% endif %}
+                    {% for category in card.paper.hub_categories %}
+                      <span class="pill pill-category">{{ category }}</span>
+                    {% endfor %}
+                  </div>
+                  <p class="meta">
+                    {{ card.paper.authors | join(", ") if card.paper.authors else "Unknown authors" }}
+                  </p>
+                  <p class="meta">Published {{ card.paper.published[:10] if card.paper.published else "Unknown date" }}</p>
+                  {% if card.paper.venue %}
+                    <p class="meta"><strong>Venue:</strong> {{ card.paper.venue }}</p>
+                  {% endif %}
+                  {% if card.paper.doi %}
+                    <p class="meta"><strong>DOI:</strong> {{ card.paper.doi }}</p>
+                  {% endif %}
+                </div>
+                <a class="paper-link" href="{{ card.paper.paper_url }}" target="_blank" rel="noreferrer">Open Source Record</a>
+              </div>
+
+              <div class="paper-body">
+                <div>
+                  <h3>Abstract</h3>
+                  <p>{{ card.paper.summary }}</p>
+                </div>
+
+                <div>
+                  <h3>Bullet Summary</h3>
+                  <ul>
+                    {% for bullet in card.bullets %}
+                      <li>{{ bullet }}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              </div>
+            </article>
+          {% endfor %}
+        </section>
+      </form>
+
+      {% if has_more %}
+        <section class="area-load-more">
+          <a
+            class="button-secondary"
+            href="/areas/{{ area_slug }}?limit={{ limit + 36 }}{% if search_query %}&q={{ search_query | urlencode }}{% endif %}{% if selected_source %}&source={{ selected_source | urlencode }}{% endif %}"
+          >
+            Load more articles
+          </a>
+        </section>
+      {% endif %}
     {% else %}
       <section class="message">
         <p>No papers are currently mapped into this area.</p>
       </section>
     {% endif %}
   </main>
+
+  <script>
+    (() => {
+      const selectAll = document.getElementById("select-all-papers");
+      const clearAll = document.getElementById("clear-all-papers");
+      const selectedCount = document.getElementById("selected-paper-count");
+      const checkboxes = Array.from(document.querySelectorAll(".paper-select-input"));
+      if (!selectAll || !clearAll || !selectedCount || checkboxes.length === 0) {
+        return;
+      }
+
+      const syncState = () => {
+        const checked = checkboxes.filter((input) => input.checked).length;
+        selectedCount.textContent = String(checked);
+      };
+
+      selectAll.addEventListener("click", () => {
+        checkboxes.forEach((input) => {
+          input.checked = true;
+        });
+        syncState();
+      });
+
+      clearAll.addEventListener("click", () => {
+        checkboxes.forEach((input) => {
+          input.checked = false;
+        });
+        syncState();
+      });
+
+      checkboxes.forEach((input) => {
+        input.addEventListener("change", syncState);
+      });
+
+      syncState();
+    })();
+  </script>
 {% endblock %}

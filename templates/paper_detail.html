@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Paper | multiagentsecurity.ai{% endblock %}
+
+{% block body %}
+  <main class="page-shell">
+    {% if error %}
+      <section class="message message-error">
+        <p>{{ error }}</p>
+      </section>
+    {% endif %}
+
+    {% if card %}
+      <section class="hero hero-page">
+        <div class="hero-copy">
+          <p class="eyebrow">Article page</p>
+          <h1>{{ card.paper.title }}</h1>
+          <p class="lede">
+            Review the paper summary, metadata, and source links for this recent publication.
+          </p>
+          <p class="meta">
+            {{ card.paper.authors | join(", ") if card.paper.authors else "Unknown authors" }}
+          </p>
+          <p class="meta">Published {{ card.paper.published[:10] if card.paper.published else "Unknown date" }}</p>
+        </div>
+        <div class="hero-panel">
+          <p class="panel-eyebrow">Actions</p>
+          <p><a class="paper-link" href="{{ card.paper.paper_url }}" target="_blank" rel="noreferrer">Open source record</a></p>
+          {% if card.paper.pdf_url %}
+            <p><a class="paper-link" href="{{ card.paper.pdf_url }}" target="_blank" rel="noreferrer">Open PDF</a></p>
+          {% endif %}
+          <p><a class="paper-link" href="/research-feed">Back to latest research</a></p>
+        </div>
+      </section>
+
+      <section class="results">
+        <article class="paper-card">
+          <div class="paper-header">
+            <div>
+              <div class="pill-row">
+                <span class="pill pill-source">{{ card.paper.source_name }}</span>
+                <span class="pill pill-type">{{ card.paper.source_type }}</span>
+                {% if card.paper.merged_from_sources %}
+                  {% for source in card.paper.merged_from_sources %}
+                    <span class="pill pill-merged">{{ source }}</span>
+                  {% endfor %}
+                {% endif %}
+                {% for category in card.paper.hub_categories %}
+                  <span class="pill pill-category">{{ category }}</span>
+                {% endfor %}
+              </div>
+              {% if card.paper.venue %}
+                <p class="meta"><strong>Venue:</strong> {{ card.paper.venue }}</p>
+              {% endif %}
+              {% if card.paper.doi %}
+                <p class="meta"><strong>DOI:</strong> {{ card.paper.doi }}</p>
+              {% endif %}
+              {% if card.paper.reviewer_notes %}
+                <p class="meta"><strong>Reviewer:</strong> {{ card.paper.reviewer_notes }}</p>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="paper-body">
+            <div class="paper-section">
+              <h3>Abstract</h3>
+              <p>{{ card.paper.summary }}</p>
+            </div>
+            <div class="paper-section">
+              <h3>Bullet summary</h3>
+              <ul>
+                {% for bullet in card.bullets %}
+                  <li>{{ bullet }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+        </article>
+      </section>
+    {% endif %}
+  </main>
+{% endblock %}

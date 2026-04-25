@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import csv
+from io import StringIO
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from fastapi import APIRouter, Form, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from services.research_hub import ResearchHubService
+from services.export_utils import build_ris, slugify_filename
 from services.topic_catalog import BROAD_AGENTIC_AI_TOPICS
 
 
@@ -25,15 +29,6 @@ SITE_NAV = [
             {"label": "Research Feed", "href": "/research-feed"},
             {"label": "Research Library", "href": "/research-library"},
             {"label": "Research Trends", "href": "/research-gaps"},
-        ],
-    },
-    {
-        "label": "Knowledge",
-        "href": "/concepts",
-        "children": [
-            {"label": "Concepts", "href": "/concepts"},
-            {"label": "Tools & Frameworks", "href": "/tools-frameworks"},
-            {"label": "Experiments / Demos", "href": "/experiments"},
         ],
     },
     {
@@ -377,6 +372,8 @@ TALKS = [
 
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request) -> HTMLResponse:
+    research_preview = await _build_home_research_preview()
+    trend_preview, trend_visual = await _build_home_trend_preview()
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -385,24 +382,32 @@ async def home(request: Request) -> HTMLResponse:
             home_features=HOME_FEATURES,
             featured_research=LIBRARY_TOPICS[:3],
             featured_posts=BLOG_POSTS[:2],
-            research_preview=HOME_RESEARCH_PREVIEW,
-            gap_preview=HOME_GAP_PREVIEW,
+            research_preview=research_preview,
+            gap_preview=trend_preview,
+            trend_visual=trend_visual,
             concept_preview=CONCEPT_ARTICLES,
         ),
     )
 
 
 @router.get("/research-feed", response_class=HTMLResponse)
-async def research_feed(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(
-        request,
-        "research_feed.html",
+async def research_feed(
+    request: Request,
+    source: str = Query(default=""),
+) -> HTMLResponse:
+    context = await _build_feed_context(request, limit=12, source_filter=source)
+    context.update(
         _base_context(
             active_page="/research-feed",
             topics=BROAD_AGENTIC_AI_TOPICS,
             active_source_feeds=ACTIVE_SOURCE_FEEDS,
             limit=12,
-        ),
+        )
+    )
+    return templates.TemplateResponse(
+        request,
+        "research_feed.html",
+        context,
     )
 
 
@@ -446,6 +451,27 @@ async def research_gaps(request: Request) -> HTMLResponse:
         )
     )
     return templates.TemplateResponse(request, "research_gaps.html", context)
+
+
+@router.get("/paper", response_class=HTMLResponse)
+async def paper_detail(request: Request, paper_id: str = Query(..., min_length=1)) -> HTMLResponse:
+    try:
+        card = await hub_service.fetch_paper_card(canonical_id=paper_id)
+        error = None
+    except Exception as exc:
+        card = None
+        detail = str(exc).strip() or exc.__class__.__name__
+        error = f"Unable to load this paper right now: {detail}"
+
+    return templates.TemplateResponse(
+        request,
+        "paper_detail.html",
+        _base_context(
+            active_page="/research-feed",
+            card=card,
+            error=error,
+        ),
+    )
 
 
 @router.get("/blog", response_class=HTMLResponse)
@@ -554,28 +580,82 @@ async def about(request: Request) -> HTMLResponse:
 async def area_detail(
     request: Request,
     area_slug: str,
-    limit: int = Query(default=36, ge=1, le=60),
+    limit: int = Query(default=36, ge=1, le=500),
+    q: str = Query(default=""),
+    source: str = Query(default=""),
 ) -> HTMLResponse:
-    try:
-        area_label, cards = await hub_service.fetch_area_papers(area_slug=area_slug, limit=limit)
-        error = None if cards else "No papers were returned for this area."
-    except Exception as exc:
-        area_label = "Unknown area"
-        cards = []
-        detail = str(exc).strip() or exc.__class__.__name__
-        error = f"Unable to load this research area right now: {detail}"
+    context = await _build_area_context(
+        request,
+        area_slug=area_slug,
+        limit=limit,
+        q=q,
+        source=source,
+    )
 
     return templates.TemplateResponse(
         request,
         "area.html",
         _base_context(
             active_page="/research-gaps",
-            area_label=area_label,
-            cards=cards,
-            error=error,
-            active_source_feeds=ACTIVE_SOURCE_FEEDS,
-            limit=limit,
+            **context,
         ),
+    )
+
+
+@router.post("/areas/{area_slug}/export", response_model=None)
+async def export_area_papers(
+    request: Request,
+    area_slug: str,
+    limit: int = Form(default=36),
+    q: str = Form(default=""),
+    source: str = Form(default=""),
+    paper_id: list[str] = Form(default=[]),
+    export_format: str = Form(...),
+) -> Response:
+    context = await _build_area_context(
+        request,
+        area_slug=area_slug,
+        limit=max(1, min(limit, 500)),
+        q=q,
+        source=source,
+    )
+    cards = context["cards"]
+    selected_ids = {item.strip() for item in paper_id if item.strip()}
+    selected_cards = [
+        card for card in cards if (card.paper.canonical_id or card.paper.id) in selected_ids
+    ]
+
+    if not selected_cards:
+        context["error"] = "Select at least one article to export."
+        return templates.TemplateResponse(
+            request,
+            "area.html",
+            _base_context(active_page="/research-gaps", **context),
+            status_code=400,
+        )
+
+    area_slugified = slugify_filename(str(context["area_label"]))
+    if export_format == "csv":
+        filename = f"{area_slugified}-papers.csv"
+        content = _build_cards_csv(selected_cards)
+        media_type = "text/csv; charset=utf-8"
+    elif export_format == "zotero":
+        filename = f"{area_slugified}-papers.ris"
+        content = build_ris([card.paper for card in selected_cards])
+        media_type = "application/x-research-info-systems"
+    else:
+        context["error"] = "Unknown export format."
+        return templates.TemplateResponse(
+            request,
+            "area.html",
+            _base_context(active_page="/research-gaps", **context),
+            status_code=400,
+        )
+
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -589,9 +669,17 @@ async def fetch_latest_papers(
     return templates.TemplateResponse(request, "research_feed.html", context)
 
 
-async def _build_feed_context(request: Request, *, limit: int) -> dict:
+async def _build_feed_context(request: Request, *, limit: int, source_filter: str = "") -> dict:
     try:
-        result = await hub_service.fetch_latest_papers(limit=limit)
+        available_sources = hub_service.fetch_stored_sources()
+        selected_source = source_filter.strip()
+        if selected_source:
+            result = hub_service.fetch_stored_latest_papers_by_source(
+                source_filter=selected_source,
+                limit=limit,
+            )
+        else:
+            result = hub_service.fetch_stored_latest_papers(limit=limit)
         error = None if result.cards else "No papers were returned for the tracked feed."
         cards = result.cards
         feed_label = result.feed_label
@@ -606,6 +694,8 @@ async def _build_feed_context(request: Request, *, limit: int) -> dict:
         heatmap_rows = []
         gap_labels = []
         concentration_labels = []
+        available_sources = []
+        selected_source = source_filter.strip()
         detail = str(exc).strip() or exc.__class__.__name__
         error = f"Unable to build the merged research feed right now: {detail}"
 
@@ -621,6 +711,8 @@ async def _build_feed_context(request: Request, *, limit: int) -> dict:
         "gap_labels": gap_labels,
         "concentration_labels": concentration_labels,
         "limit": max(1, min(limit, 20)),
+        "available_sources": available_sources,
+        "selected_source": selected_source,
     }
 
 
@@ -659,6 +751,70 @@ async def _build_gap_context(request: Request) -> dict:
     }
 
 
+async def _build_area_context(
+    request: Request,
+    *,
+    area_slug: str,
+    limit: int,
+    q: str,
+    source: str,
+) -> dict:
+    try:
+        area_label, area_cards = await hub_service.fetch_area_papers(area_slug=area_slug, limit=None)
+        search_query = q.strip()
+        selected_source = source.strip()
+        available_sources = _available_sources_for_cards(
+            hub_service.database_service.load_cards()
+            if hub_service.database_service.has_persisted_papers()
+            else area_cards
+        )
+
+        if search_query and hub_service.database_service.has_persisted_papers():
+            filtered_cards = hub_service.database_service.load_cards()
+        else:
+            filtered_cards = area_cards
+
+        if selected_source:
+            filtered_cards = _filter_cards_by_source(filtered_cards, selected_source)
+        match_count = len(filtered_cards)
+        if search_query:
+            filtered_cards = _filter_cards_by_keyword(filtered_cards, search_query)
+            match_count = len(filtered_cards)
+            error = None if filtered_cards else f'No papers matched "{search_query}" in this area.'
+        else:
+            error = None if filtered_cards else "No papers were returned for this area."
+        cards = filtered_cards[:limit]
+        total_available = len(filtered_cards)
+        has_more = total_available > len(cards)
+    except Exception as exc:
+        area_label = "Unknown area"
+        cards = []
+        search_query = q.strip()
+        selected_source = source.strip()
+        available_sources = []
+        match_count = 0
+        total_available = 0
+        has_more = False
+        detail = str(exc).strip() or exc.__class__.__name__
+        error = f"Unable to load this research area right now: {detail}"
+
+    return {
+        "request": request,
+        "area_slug": area_slug,
+        "area_label": area_label,
+        "cards": cards,
+        "error": error,
+        "active_source_feeds": ACTIVE_SOURCE_FEEDS,
+        "limit": limit,
+        "search_query": search_query,
+        "match_count": match_count,
+        "total_available": total_available,
+        "has_more": has_more,
+        "selected_source": selected_source,
+        "available_sources": available_sources,
+    }
+
+
 def _base_context(*, active_page: str, **extra: object) -> dict:
     return {
         "site_nav": SITE_NAV,
@@ -666,3 +822,182 @@ def _base_context(*, active_page: str, **extra: object) -> dict:
         "active_source_feeds": ACTIVE_SOURCE_FEEDS,
         **extra,
     }
+
+
+def _filter_cards_by_keyword(cards, search_query: str):
+    needle = " ".join(search_query.lower().split())
+    if not needle:
+        return cards
+
+    filtered = []
+    for card in cards:
+        haystack = " ".join(
+            [
+                card.paper.title,
+                " ".join(card.bullets),
+            ]
+        ).lower()
+        if needle in haystack:
+            filtered.append(card)
+    return filtered
+
+
+def _filter_cards_by_source(cards, source_filter: str):
+    needle = source_filter.strip().lower()
+    if not needle:
+        return cards
+    filtered = []
+    for card in cards:
+        sources = _source_keys_for_card(card)
+        if needle in sources:
+            filtered.append(card)
+    return filtered
+
+
+def _available_sources_for_cards(cards) -> list[str]:
+    sources: set[str] = set()
+    for card in cards:
+        sources.update(_source_keys_for_card(card))
+    return sorted(sources)
+
+
+def _source_keys_for_card(card) -> set[str]:
+    sources: set[str] = set()
+    if card.paper.source_name:
+        sources.add(card.paper.source_name.split("·")[0].strip().lower())
+    for source in card.paper.merged_from_sources:
+        if source:
+            sources.add(source.strip().lower())
+    return sources
+
+
+def _build_cards_csv(cards) -> str:
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "canonical_id",
+            "title",
+            "authors",
+            "published",
+            "source_name",
+            "source_type",
+            "doi",
+            "venue",
+            "hub_categories",
+            "paper_url",
+            "pdf_url",
+            "bullet_summary",
+        ]
+    )
+    for card in cards:
+        writer.writerow(
+            [
+                card.paper.canonical_id or card.paper.id,
+                card.paper.title,
+                ", ".join(card.paper.authors),
+                card.paper.published,
+                card.paper.source_name,
+                card.paper.source_type,
+                card.paper.doi or "",
+                card.paper.venue or "",
+                ", ".join(card.paper.hub_categories),
+                card.paper.paper_url,
+                card.paper.pdf_url or "",
+                " | ".join(card.bullets),
+            ]
+        )
+    return output.getvalue()
+
+
+async def _build_home_research_preview() -> list[dict[str, str]]:
+    try:
+        result = await hub_service.fetch_latest_papers(limit=3)
+    except Exception:
+        return HOME_RESEARCH_PREVIEW
+
+    preview: list[dict[str, str]] = []
+    for card in result.cards[:3]:
+        published = card.paper.published[:10] if card.paper.published else "Recent publication"
+        summary = card.bullets[0] if card.bullets else card.paper.summary
+        preview.append(
+            {
+                "title": card.paper.title,
+                "summary": summary,
+                "meta": f"Published {published}",
+                "href": f"/paper?paper_id={quote_plus(card.paper.canonical_id or card.paper.id)}",
+            }
+        )
+    return preview or HOME_RESEARCH_PREVIEW
+
+
+async def _build_home_trend_preview() -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    try:
+        result = await hub_service.fetch_gap_snapshot()
+    except Exception:
+        fallback_preview = [
+            {"label": item["label"], "value": item["value"], "count": None, "status": None, "topics": []}
+            for item in HOME_GAP_PREVIEW
+        ]
+        fallback_visual = [
+            {"status": "High concentration", "intensity": 1.0},
+            {"status": "Emerging / moderate", "intensity": 0.7},
+            {"status": "Gap / underexplored", "intensity": 0.45},
+        ]
+        return fallback_preview, fallback_visual
+
+    status_labels = {
+        "High concentration": "Leading research areas",
+        "Emerging / moderate": "Building momentum",
+        "Gap / underexplored": "Earlier-stage signals",
+    }
+
+    grouped_rows: list[dict[str, object]] = []
+    for status in ("High concentration", "Emerging / moderate", "Gap / underexplored"):
+        rows = [row for row in result.heatmap_rows if row.status == status][:2]
+        if not rows:
+            continue
+        grouped_rows.append(
+            {
+                "label": status_labels[status],
+                "value": ", ".join(row.category for row in rows),
+                "count": sum(row.count for row in rows),
+                "status": status,
+                "topics": [{"label": row.category, "href": f"/areas/{row.slug}"} for row in rows],
+                "intensity": max((row.intensity for row in rows), default=0.0),
+            }
+        )
+
+    if len(grouped_rows) < 3:
+        used_categories = {
+            topic["label"]
+            for group in grouped_rows
+            for topic in group["topics"]  # type: ignore[index]
+        }
+        for row in result.heatmap_rows:
+            if row.category in used_categories:
+                continue
+            grouped_rows.append(
+                {
+                    "label": f"Top area #{len(grouped_rows) + 1}",
+                    "value": row.category,
+                    "count": row.count,
+                    "status": row.status,
+                    "topics": [{"label": row.category, "href": f"/areas/{row.slug}"}],
+                    "intensity": row.intensity,
+                }
+            )
+            if len(grouped_rows) == 3:
+                break
+
+    preview = grouped_rows[:3]
+    for index, item in enumerate(preview, start=1):
+        item["label"] = f"Trending areas {index}"
+    visual = [
+        {
+            "status": item["status"],
+            "intensity": item["intensity"],
+        }
+        for item in preview
+    ]
+    return preview, visual

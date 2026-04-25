@@ -7,20 +7,11 @@
     <section class="hero hero-page">
       <div class="hero-copy">
         <p class="eyebrow">Research trends</p>
-        <h1>Understand concentration, momentum, and emerging directions.</h1>
+        <h1>Research trends in multi-agent security.</h1>
         <p class="lede">
-          This page is the research-intelligence layer: a quick way to see which multi-agent security areas
-          are leading the current corpus, which ones are building momentum, and which ones still sit earlier
-          in the trend curve.
+          A quick view of which topic areas are currently leading the stored corpus, which ones are building
+          momentum, and which ones are still earlier in the research cycle.
         </p>
-      </div>
-      <div class="hero-panel">
-        <p class="panel-eyebrow">Trend signals</p>
-        <ul class="bullet-list">
-          <li>Trend board for leading, rising, and early-stage topic clusters.</li>
-          <li>Timeline-style visual weighting based on current concentration in the corpus.</li>
-          <li>Direct links into each area so the trend view stays connected to the underlying papers.</li>
-        </ul>
       </div>
     </section>
 
@@ -45,7 +36,7 @@
 
         <div class="trend-board">
           {% for row in heatmap_rows[:6] %}
-            <article class="trend-card">
+            <a class="trend-card trend-card-link" href="/areas/{{ row.slug }}">
               <div class="trend-card-head">
                 <div>
                   <p class="trend-card-label">
@@ -57,7 +48,7 @@
                       Building momentum
                     {% endif %}
                   </p>
-                  <h3><a class="coverage-link" href="/areas/{{ row.slug }}">{{ row.category }}</a></h3>
+                  <h3>{{ row.category }}</h3>
                 </div>
                 <span class="coverage-count {% if row.status == 'High concentration' %}coverage-count-high{% elif row.status == 'Gap / underexplored' %}coverage-count-low{% else %}coverage-count-mid{% endif %}">
                   {{ row.count }}
@@ -79,7 +70,7 @@
                   Active and visible, with room to become a more central thread in the literature.
                 {% endif %}
               </p>
-            </article>
+            </a>
           {% endfor %}
         </div>
       </section>

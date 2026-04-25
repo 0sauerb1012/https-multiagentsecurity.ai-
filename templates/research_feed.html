@@ -9,50 +9,41 @@
         <p class="eyebrow">Research feed</p>
         <h1>Latest multi-agent security papers.</h1>
         <p class="lede">
-          This view shows the latest papers pulled from the tracked scholarly sources, then deduplicated,
-          filtered for multi-agent security relevance, and summarized for rapid review.
+          This view shows the latest relevant papers from the stored research corpus, which is refreshed
+          on a daily ingestion cycle.
         </p>
-      </div>
-      <div class="hero-panel">
-        <p class="panel-eyebrow">Roadmap hooks</p>
-        <ul class="bullet-list">
-          <li>Live paper ingestion and canonical record merging.</li>
-          <li>Topic, date, and source filtering placeholders for future interaction.</li>
-          <li>Research visualization entry point for future graph or trend views.</li>
-        </ul>
       </div>
     </section>
 
     <section class="control-panel">
       <div class="control-card">
-        <span class="control-heading">Active feeds</span>
+        <span class="control-heading">Tracked sources</span>
         <p>{{ active_source_feeds | join(", ") }}</p>
       </div>
       <div class="control-card">
-        <span class="control-heading">Broad collection</span>
-        <p>{{ topics | map(attribute='label') | join(", ") }}</p>
+        <span class="control-heading">Latest papers shown</span>
+        <p>{{ limit }}</p>
       </div>
       <div class="control-card">
-        <span class="control-heading">Future controls</span>
-        <p>Source filters, topic tags, date windows, and visualization pivots will sit in this surface.</p>
+        <span class="control-heading">Refresh cadence</span>
+        <p>The latest relevant articles are fetched once a day.</p>
       </div>
-      <form method="post" action="/fetch" class="controls" id="feed-form">
+      <form method="get" class="controls">
         <div class="field field-small">
-          <label for="limit">Latest papers shown</label>
-          <input id="limit" name="limit" type="number" min="1" max="20" value="{{ limit }}" />
+          <label for="source">Source</label>
+          <select id="source" name="source">
+            <option value="">All stored sources</option>
+            {% for source_name in available_sources %}
+              <option value="{{ source_name }}" {% if selected_source == source_name %}selected{% endif %}>
+                {{ source_name }}
+              </option>
+            {% endfor %}
+          </select>
         </div>
-        <button type="submit" id="refresh-button">Refresh latest papers</button>
+        <button type="submit">Filter source</button>
       </form>
     </section>
 
-    <section class="message loading-state" id="feed-status">
-      <p id="feed-status-text">Loading the current multi-agent security feed...</p>
-    </section>
-
-    <div id="feed-results" data-feed-endpoint="/feed">
-      {% if cards is defined %}
-        {% include "_feed_content.html" %}
-      {% endif %}
-    </div>
+    {% include "_feed_content.html" %}
   </main>
 {% endblock %}

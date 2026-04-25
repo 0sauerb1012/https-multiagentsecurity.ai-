@@ -16,23 +16,6 @@
       </div>
     </section>
 
-    <section class="section-block">
-      <div class="section-heading">
-        <div>
-          <h2>Library taxonomy</h2>
-        </div>
-      </div>
-      <div class="content-grid">
-        {% for topic in library_topics %}
-          <a class="content-card content-card-link" href="/areas/{{ topic.slug }}">
-            <p class="card-tag">Library topic</p>
-            <h3>{{ topic.title }}</h3>
-            <p>{{ topic.description }}</p>
-          </a>
-        {% endfor %}
-      </div>
-    </section>
-
     {% if error %}
       <section class="message message-error">
         <p>{{ error }}</p>
@@ -52,15 +35,15 @@
 
         <div class="content-grid">
           {% for group in library_groups %}
-            <article class="content-card">
+            <a class="content-card content-card-link library-bucket-card" href="/areas/{{ group.slug }}">
               <p class="card-tag">{{ group.count }} papers</p>
-              <h3><a class="coverage-link" href="/areas/{{ group.slug }}">{{ group.category }}</a></h3>
+              <h3>{{ group.category }}</h3>
               <ul class="bullet-list">
                 {% for card in group.cards %}
                   <li>{{ card.paper.title }}</li>
                 {% endfor %}
               </ul>
-            </article>
+            </a>
           {% endfor %}
         </div>
       </section>

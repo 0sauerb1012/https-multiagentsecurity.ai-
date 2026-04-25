@@ -13,77 +13,21 @@
           multi-agent security.
         </p>
         <div class="hero-actions">
-          <a class="button-primary" href="/research-feed">Explore research feed</a>
-          <a class="button-secondary" href="/research-gaps">View research trends</a>
+          <a class="button-primary" href="/research-feed">Latest Papers</a>
+          <a class="button-secondary" href="/research-library">Research Library</a>
+          <a class="button-secondary" href="/research-gaps">Research Trends</a>
         </div>
       </div>
-
-      <article class="hero-panel hero-signal-panel home-abstract-panel">
-        <p class="panel-eyebrow">Scope</p>
-        <p>
-          The site emphasizes recent literature, topic-level organization, and a small reference layer for
-          recurring concepts in agent security.
-        </p>
-        <p>
-          It is intended to function more like a research index than a general-purpose product homepage.
-        </p>
-      </article>
-    </section>
-
-    <section class="section-block">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">Sections</p>
-          <h2>Core views</h2>
-        </div>
-        <p class="section-copy">
-          The main site views cover the latest papers, the categorized library, trend signals, and reference material.
-        </p>
-      </div>
-
-      <div class="feature-grid">
-        {% for feature in home_features %}
-          <a class="feature-card" href="{{ feature.href }}">
-            <span class="feature-eyebrow">{{ feature.eyebrow }}</span>
-            <h3>{{ feature.title }}</h3>
-            <p>{{ feature.description }}</p>
-          </a>
-        {% endfor %}
-      </div>
-    </section>
-
-    <section class="section-block taxonomy-showcase">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">Library taxonomy</p>
-          <h2>Topic areas</h2>
-        </div>
-        <p class="section-copy">
-          Start with a topic area, then open the papers currently mapped into that part of the field.
-        </p>
-      </div>
-
-      <div class="taxonomy-grid">
-        {% for item in featured_research %}
-          <a class="taxonomy-card" href="/areas/{{ item.slug }}">
-            <p class="card-tag">Library topic</p>
-            <h3>{{ item.title }}</h3>
-            <p>{{ item.description }}</p>
-          </a>
-        {% endfor %}
-      </div>
-
-      <a class="inline-link" href="/research-library">Open the full research library</a>
     </section>
 
     <section class="section-block section-split section-preview-split">
       <div class="stack-card stack-card-strong">
         <div class="section-heading section-heading-tight">
           <div>
-            <p class="eyebrow">Recent papers</p>
-            <h2>Latest signals</h2>
+            <p class="eyebrow">Recent publications</p>
+            <h2>Some of the most recent papers</h2>
           </div>
-          <a class="inline-link" href="/research-feed">View all research</a>
+          <a class="inline-link inline-link-button" href="/research-feed">Go to the latest research</a>
         </div>
 
         <div class="compact-list compact-list-tight">
@@ -92,6 +36,9 @@
               <p class="item-meta">{{ item.meta }}</p>
               <h3>{{ item.title }}</h3>
               <p>{{ item.summary }}</p>
+              {% if item.href %}
+                <a class="inline-link inline-link-button preview-link" href="{{ item.href }}">Open article page</a>
+              {% endif %}
             </article>
           {% endfor %}
         </div>
@@ -101,23 +48,34 @@
         <div class="section-heading section-heading-tight">
           <div>
             <p class="eyebrow">Research trends</p>
-            <h2>Current concentration and movement.</h2>
+            <h2>Where the literature is moving.</h2>
           </div>
-          <a class="inline-link" href="/research-gaps">Open trend view</a>
+          <a class="inline-link inline-link-button" href="/research-gaps">Open the research trends view</a>
         </div>
 
         <div class="intel-preview">
           <div class="intel-visual">
-            <span class="intel-band intel-band-high"></span>
-            <span class="intel-band intel-band-mid"></span>
-            <span class="intel-band intel-band-low"></span>
+            {% for item in trend_visual %}
+              <span class="intel-band {% if item.status == 'High concentration' %}intel-band-high{% elif item.status == 'Gap / underexplored' %}intel-band-low{% else %}intel-band-mid{% endif %}" style="height: {{ (40 + (item.intensity * 60)) | round(0, 'ceil') }}%;"></span>
+            {% endfor %}
           </div>
 
           <div class="intel-stats">
             {% for item in gap_preview %}
               <article class="intel-stat">
                 <span class="intel-label">{{ item.label }}</span>
-                <p>{{ item.value }}</p>
+                {% if item.count %}
+                  <p class="intel-count">{{ item.count }} papers</p>
+                {% endif %}
+                {% if item.topics %}
+                  <div class="topic-link-row">
+                    {% for topic in item.topics %}
+                      <a class="mini-pill topic-link-pill" href="{{ topic.href }}">{{ topic.label }}</a>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <p>{{ item.value }}</p>
+                {% endif %}
               </article>
             {% endfor %}
           </div>
@@ -125,45 +83,5 @@
       </div>
     </section>
 
-    <section class="section-block section-split">
-      <div class="stack-card">
-        <div class="section-heading section-heading-tight">
-          <div>
-            <p class="eyebrow">Writing</p>
-            <h2>Recent notes</h2>
-          </div>
-          <a class="inline-link" href="/blog">Read the blog</a>
-        </div>
-
-        <div class="compact-list compact-list-tight">
-          {% for post in featured_posts %}
-            <article class="compact-item">
-              <p class="item-meta">{{ post.date }}</p>
-              <h3><a href="/blog/{{ post.slug }}">{{ post.title }}</a></h3>
-              <p>{{ post.summary }}</p>
-            </article>
-          {% endfor %}
-        </div>
-      </div>
-
-      <div class="stack-card">
-        <div class="section-heading section-heading-tight">
-          <div>
-            <p class="eyebrow">Concepts</p>
-            <h2>Reference notes</h2>
-          </div>
-          <a class="inline-link" href="/concepts">Explore concepts</a>
-        </div>
-
-        <div class="compact-list compact-list-tight">
-          {% for article in concept_preview %}
-            <article class="compact-item">
-              <h3><a href="/concepts/{{ article.slug }}">{{ article.title }}</a></h3>
-              <p>{{ article.summary }}</p>
-            </article>
-          {% endfor %}
-        </div>
-      </div>
-    </section>
   </main>
 {% endblock %}

@@ -38,17 +38,61 @@ async function loadFeed(limit) {
   }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  const form = document.getElementById("feed-form");
-  const limitInput = document.getElementById("limit");
-  if (!form || !limitInput) {
+function initFeed() {
+  const results = document.getElementById("feed-results");
+  if (!results) {
     return;
   }
 
-  loadFeed(limitInput.value || "12");
+  const defaultLimit = results.dataset.defaultLimit || "12";
+  loadFeed(defaultLimit);
 
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    loadFeed(limitInput.value || "12");
+  const form = document.getElementById("feed-form");
+  const limitInput = document.getElementById("limit");
+  if (form && limitInput) {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      loadFeed(limitInput.value || defaultLimit);
+    });
+  }
+}
+
+function initAreaExportSelection() {
+  const selectAll = document.getElementById("select-all-papers");
+  const clearAll = document.getElementById("clear-all-papers");
+  const selectedCount = document.getElementById("selected-paper-count");
+  const checkboxes = Array.from(document.querySelectorAll(".paper-select-input"));
+  if (!selectAll || !clearAll || !selectedCount || checkboxes.length === 0) {
+    return;
+  }
+
+  const syncState = () => {
+    const checked = checkboxes.filter((input) => input.checked).length;
+    selectedCount.textContent = String(checked);
+  };
+
+  selectAll.addEventListener("click", () => {
+    checkboxes.forEach((input) => {
+      input.checked = true;
+    });
+    syncState();
   });
+
+  clearAll.addEventListener("click", () => {
+    checkboxes.forEach((input) => {
+      input.checked = false;
+    });
+    syncState();
+  });
+
+  checkboxes.forEach((input) => {
+    input.addEventListener("change", syncState);
+  });
+
+  syncState();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  initFeed();
+  initAreaExportSelection();
 });
