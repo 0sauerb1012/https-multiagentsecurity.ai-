@@ -369,6 +369,43 @@ TALKS = [
     },
 ]
 
+ABOUT_PROFILE = {
+    "name": "Benjamin Sauers",
+    "location": "Ypsilanti, Michigan",
+    "role": "PhD student at Eastern Michigan University and cybersecurity professional at Rocket, focused on cloud-native technologies and AI.",
+    "linkedin_url": "https://www.linkedin.com/in/benjamin-sauers",
+    "bio": (
+        "Benjamin Sauers is a Michigan-based PhD student at Eastern Michigan University and a cybersecurity "
+        "professional at Rocket. His work sits at the intersection of cloud-native technologies, AI, and modern "
+        "security practice, with a particular interest in how emerging intelligent systems change operational and "
+        "architectural risk."
+    ),
+}
+
+ABOUT_FOCUS_AREAS = [
+    "Cloud-native technologies and modern platform security",
+    "Applied AI and agentic system risk",
+    "Security operations and vulnerability management",
+    "Multi-agent systems research",
+]
+
+ABOUT_EDUCATION = {
+    "school": "Eastern Michigan University",
+    "items": [
+        "M.S. in Cybersecurity, Eastern Michigan University",
+        "PhD studies in progress at Eastern Michigan University",
+        "Research focus: cybersecurity, applied computing, and multi-agent systems",
+    ],
+}
+
+ABOUT_CERTIFICATIONS = [
+    "AWS Certified Cloud Practitioner",
+    "CompTIA PenTest+",
+    "CompTIA Security+",
+    "CompTIA CySA+",
+    "CompTIA Advanced Security Practitioner (SecurityX)",
+]
+
 
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request) -> HTMLResponse:
@@ -571,7 +608,10 @@ async def about(request: Request) -> HTMLResponse:
         "about.html",
         _base_context(
             active_page="/about",
-            talks=TALKS,
+            profile=ABOUT_PROFILE,
+            focus_areas=ABOUT_FOCUS_AREAS,
+            education=ABOUT_EDUCATION,
+            certifications=ABOUT_CERTIFICATIONS,
         ),
     )
 

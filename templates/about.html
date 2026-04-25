@@ -1,39 +1,82 @@
 {% extends "base.html" %}
 
-{% block title %}Talks / About | multiagentsecurity.ai{% endblock %}
+{% block title %}About Benjamin Sauers | multiagentsecurity.ai{% endblock %}
 
 {% block body %}
   <main class="page-shell">
     <section class="hero hero-page">
       <div class="hero-copy">
-        <p class="eyebrow">Talks / about</p>
-        <h1>Project background and talk formats.</h1>
+        <p class="eyebrow">About</p>
+        <h1>{{ profile.name }}</h1>
         <p class="lede">
-          This section contains short background information about the project together with talk formats and
-          related presentation material.
+          {{ profile.role }}
+        </p>
+        <p>{{ profile.bio }}</p>
+        <p>
+          <a href="{{ profile.linkedin_url }}" target="_blank" rel="noreferrer">View LinkedIn profile</a>
         </p>
       </div>
     </section>
 
     <section class="section-split">
       <div class="stack-card">
-        <p class="eyebrow">About</p>
-        <h2>What this hub is for</h2>
-        <p>
-          Multi-agent security draws on work from several adjacent areas. This site is intended to organize
-          that material into a form that is easier to review and compare.
-        </p>
-      </div>
-      <div class="stack-card">
-        <p class="eyebrow">Talk formats</p>
+        <p class="eyebrow">Profile</p>
+        <h2>Current focus</h2>
         <div class="compact-list">
-          {% for talk in talks %}
+          <article class="compact-item">
+            <h3>Location</h3>
+            <p>{{ profile.location }}</p>
+          </article>
+          <article class="compact-item">
+            <h3>Current role</h3>
+            <p>Cybersecurity professional at Rocket</p>
+          </article>
+          <article class="compact-item">
+            <h3>Academic work</h3>
+            <p>PhD student at Eastern Michigan University</p>
+          </article>
+          {% for area in focus_areas %}
             <article class="compact-item">
-              <h3>{{ talk.title }}</h3>
-              <p>{{ talk.description }}</p>
+              <h3>{{ area }}</h3>
             </article>
           {% endfor %}
         </div>
+      </div>
+      <div class="stack-card">
+        <p class="eyebrow">Education</p>
+        <div class="compact-list">
+          <article class="compact-item">
+            <h3>{{ education.school }}</h3>
+          </article>
+          {% for item in education["items"] %}
+            <article class="compact-item">
+              <p>{{ item }}</p>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="section-split">
+      <div class="stack-card">
+        <p class="eyebrow">Credentials</p>
+        <div class="compact-list">
+          {% for certification in certifications %}
+            <article class="compact-item">
+              <h3>{{ certification }}</h3>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="stack-card">
+        <p class="eyebrow">Contact</p>
+        <h2>Professional profile</h2>
+        <p>
+          The easiest place to review Benjamin Sauers' current experience, credentials, and updates is LinkedIn.
+        </p>
+        <p>
+          <a href="{{ profile.linkedin_url }}" target="_blank" rel="noreferrer">{{ profile.linkedin_url }}</a>
+        </p>
       </div>
     </section>
   </main>
