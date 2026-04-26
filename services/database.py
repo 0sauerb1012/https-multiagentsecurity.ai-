@@ -272,16 +272,19 @@ class DatabaseService:
     def has_persisted_papers(self) -> bool:
         self.initialize()
         with self._connect() as connection:
-            row = connection.execute("SELECT COUNT(*) AS count FROM papers WHERE is_fit = 1").fetchone()
+            row = connection.execute(
+                f"SELECT COUNT(*) AS count FROM papers WHERE {self._is_fit_true_clause()}"
+            ).fetchone()
         return bool(row and self._value(row, "count"))
 
     def load_cards(self, *, limit: int | None = None) -> list[PaperCard]:
         self.initialize()
         query = """
             SELECT * FROM papers
-            WHERE is_fit = 1
+            WHERE {is_fit_true_clause}
             ORDER BY published DESC, fit_score DESC
         """
+        query = query.format(is_fit_true_clause=self._is_fit_true_clause())
         params: tuple[object, ...] = ()
         if limit is not None:
             query += f"\nLIMIT {self._placeholder()}"
@@ -312,9 +315,10 @@ class DatabaseService:
                 self._sql(
                     """
                     SELECT * FROM papers
-                    WHERE canonical_id = ? AND is_fit = 1
+                    WHERE canonical_id = ? AND {is_fit_true_clause}
                     LIMIT 1
                     """
+                    .format(is_fit_true_clause=self._is_fit_true_clause())
                 ),
                 (canonical_id,),
             ).fetchone()
@@ -623,6 +627,9 @@ class DatabaseService:
 
     def _placeholder(self) -> str:
         return "%s" if self.backend == "postgres" else "?"
+
+    def _is_fit_true_clause(self) -> str:
+        return "is_fit = TRUE" if self.backend == "postgres" else "is_fit = 1"
 
     @staticmethod
     def _value(row, key: str):

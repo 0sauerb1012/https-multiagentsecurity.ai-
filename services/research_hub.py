@@ -277,8 +277,11 @@ class ResearchHubService:
             *(
                 self._load_topic_papers(
                     topic,
+                    mode="seed",
                     per_topic_limit=per_topic_limit,
                     years_back=years_back,
+                    overlap_days=3,
+                    reconcile_lookback_days=30,
                 )
                 for topic in topic_definitions
             )

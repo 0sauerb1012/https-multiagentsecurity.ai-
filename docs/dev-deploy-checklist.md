@@ -83,7 +83,7 @@ aws_region   = "us-east-1"
 project_name = "multiagentsecurity-ai"
 environment  = "dev"
 
-image_tag = "latest"
+image_tag = "2026-04-26-01"
 
 database_url_param_name   = "/multiagentsecurity/dev/DATABASE_URL"
 openai_api_key_param_name = "/multiagentsecurity/dev/OPENAI_API_KEY"
@@ -115,16 +115,28 @@ This lets you push the Lambda image before the full stack apply.
 Use the helper script:
 
 ```bash
-bash scripts/deploy_lambda_image.sh us-east-1 multiagentsecurity-ai-dev-lambda latest
+bash scripts/deploy_lambda_image.sh us-east-1 multiagentsecurity-ai-dev-lambda
 ```
 
 Script inputs:
 
 1. AWS region
 2. ECR repository name
-3. image tag
+3. optional image tag, defaults to an auto-incremented `YYYY-MM-DD-NN` tag
+4. optional `terraform.tfvars` path, defaults to `infra/terraform/phase1/terraform.tfvars`
 
-The script builds [Dockerfile.lambda](/home/ben/Desktop/website/Dockerfile.lambda), logs Docker into ECR, and pushes the image.
+The script:
+
+- builds [Dockerfile.lambda](/home/ben/Desktop/website/Dockerfile.lambda)
+- logs Docker into ECR
+- pushes the image
+- updates `image_tag` in your local `terraform.tfvars` if that file exists
+
+If you want to force a specific tag:
+
+```bash
+bash scripts/deploy_lambda_image.sh us-east-1 multiagentsecurity-ai-dev-lambda 2026-04-26-02
+```
 
 ## 6. Apply the full Terraform stack
 
