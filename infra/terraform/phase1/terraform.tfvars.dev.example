@@ -1,0 +1,34 @@
+aws_region   = "us-east-1"
+project_name = "multiagentsecurity-ai"
+environment  = "dev"
+
+image_tag = "latest"
+
+# Preferred: SSM SecureString parameters
+database_url_param_name             = "/multiagentsecurity/dev/DATABASE_URL"
+openai_api_key_param_name           = "/multiagentsecurity/dev/OPENAI_API_KEY"
+openalex_api_key_param_name         = ""
+openalex_email_param_name           = ""
+crossref_email_param_name           = ""
+semantic_scholar_api_key_param_name = ""
+
+# Non-secret runtime config
+plain_env_vars = {
+  OPENAI_MODEL = "gpt-4.1-mini"
+}
+
+# Keep the defaults conservative for the first deployment.
+api_lambda_memory       = 1024
+ingestion_lambda_memory = 2048
+years_back              = 5
+
+incremental_target_limit    = 250
+incremental_per_topic_limit = 40
+incremental_overlap_days    = 3
+
+reconcile_target_limit    = 500
+reconcile_per_topic_limit = 60
+reconcile_lookback_days   = 30
+
+incremental_schedule_expression = "cron(0 11 * * ? *)"
+reconcile_schedule_expression   = "cron(0 12 ? * SUN *)"

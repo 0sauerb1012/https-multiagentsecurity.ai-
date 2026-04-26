@@ -224,6 +224,7 @@ See:
 
 - [docs/phase1-aws-deployment.md](/home/ben/Desktop/website/docs/phase1-aws-deployment.md)
 - [infra/terraform/phase1/README.md](/home/ben/Desktop/website/infra/terraform/phase1/README.md)
+- [docs/dev-deploy-checklist.md](/home/ben/Desktop/website/docs/dev-deploy-checklist.md)
 
 ## Notes
 

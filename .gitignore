@@ -28,6 +28,8 @@ data/
 *.tfstate
 *.tfstate.*
 *.tfplan
+*.tfvars
+*.tfvars.json
 
 # OS/editor noise
 .DS_Store
