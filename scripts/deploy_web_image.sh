@@ -48,12 +48,24 @@ update_tfvars_web_image_tag() {
     return 0
   fi
 
-  if rg -q '^web_image_tag\s*=' "${tfvars_path}"; then
-    sed -i.bak -E "s|^web_image_tag\s*=.*$|web_image_tag = \"${image_tag}\"|" "${tfvars_path}"
-    rm -f "${tfvars_path}.bak"
-  else
-    printf '\nweb_image_tag = "%s"\n' "${image_tag}" >> "${tfvars_path}"
-  fi
+  awk -v image_tag="${image_tag}" '
+    BEGIN { replaced = 0 }
+    /^[[:space:]]*web_image_tag[[:space:]]*=/ {
+      if (!replaced) {
+        print "web_image_tag = \"" image_tag "\""
+        replaced = 1
+      }
+      next
+    }
+    { print }
+    END {
+      if (!replaced) {
+        print ""
+        print "web_image_tag = \"" image_tag "\""
+      }
+    }
+  ' "${tfvars_path}" > "${tfvars_path}.tmp"
+  mv "${tfvars_path}.tmp" "${tfvars_path}"
 
   echo "Updated ${tfvars_path} with web_image_tag = \"${image_tag}\""
 }

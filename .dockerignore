@@ -18,6 +18,9 @@ docs
 *.sqlite
 *.sqlite3
 .env
+api/.env
+*.env
+*.env.*
 *.tfstate
 *.tfstate.*
 *.tfplan

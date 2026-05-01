@@ -48,12 +48,24 @@ update_tfvars_lambda_image_tag() {
     return 0
   fi
 
-  if rg -q '^lambda_image_tag\s*=' "${tfvars_path}"; then
-    sed -i.bak -E "s|^lambda_image_tag\s*=.*$|lambda_image_tag = \"${image_tag}\"|" "${tfvars_path}"
-    rm -f "${tfvars_path}.bak"
-  else
-    printf '\nlambda_image_tag = "%s"\n' "${image_tag}" >> "${tfvars_path}"
-  fi
+  awk -v image_tag="${image_tag}" '
+    BEGIN { replaced = 0 }
+    /^[[:space:]]*lambda_image_tag[[:space:]]*=/ {
+      if (!replaced) {
+        print "lambda_image_tag = \"" image_tag "\""
+        replaced = 1
+      }
+      next
+    }
+    { print }
+    END {
+      if (!replaced) {
+        print ""
+        print "lambda_image_tag = \"" image_tag "\""
+      }
+    }
+  ' "${tfvars_path}" > "${tfvars_path}.tmp"
+  mv "${tfvars_path}.tmp" "${tfvars_path}"
 
   echo "Updated ${tfvars_path} with lambda_image_tag = \"${image_tag}\""
 }
