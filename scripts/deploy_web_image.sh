@@ -39,23 +39,23 @@ next_auto_tag() {
   echo "${date_prefix}-${next_suffix}"
 }
 
-update_tfvars_lambda_image_tag() {
+update_tfvars_web_image_tag() {
   local image_tag="$1"
   local tfvars_path="$2"
 
   if [[ ! -f "${tfvars_path}" ]]; then
-    echo "Terraform vars file not found at ${tfvars_path}; skipping lambda_image_tag update."
+    echo "Terraform vars file not found at ${tfvars_path}; skipping web_image_tag update."
     return 0
   fi
 
-  if rg -q '^lambda_image_tag\s*=' "${tfvars_path}"; then
-    sed -i.bak -E "s|^lambda_image_tag\s*=.*$|lambda_image_tag = \"${image_tag}\"|" "${tfvars_path}"
+  if rg -q '^web_image_tag\s*=' "${tfvars_path}"; then
+    sed -i.bak -E "s|^web_image_tag\s*=.*$|web_image_tag = \"${image_tag}\"|" "${tfvars_path}"
     rm -f "${tfvars_path}.bak"
   else
-    printf '\nlambda_image_tag = "%s"\n' "${image_tag}" >> "${tfvars_path}"
+    printf '\nweb_image_tag = "%s"\n' "${image_tag}" >> "${tfvars_path}"
   fi
 
-  echo "Updated ${tfvars_path} with lambda_image_tag = \"${image_tag}\""
+  echo "Updated ${tfvars_path} with web_image_tag = \"${image_tag}\""
 }
 
 if [[ "${REQUESTED_TAG}" == "auto" ]]; then
@@ -69,10 +69,10 @@ IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY_NAME}:${IMAGE_TAG}"
 aws ecr get-login-password --region "${AWS_REGION}" \
   | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
-docker build -f "${REPO_ROOT}/Dockerfile.lambda" -t "${IMAGE_URI}" "${REPO_ROOT}"
+docker build -f "${REPO_ROOT}/Dockerfile" -t "${IMAGE_URI}" "${REPO_ROOT}"
 docker push "${IMAGE_URI}"
 
-update_tfvars_lambda_image_tag "${IMAGE_TAG}" "${ABS_TFVARS_PATH}"
+update_tfvars_web_image_tag "${IMAGE_TAG}" "${ABS_TFVARS_PATH}"
 
-echo "Pushed Lambda image: ${IMAGE_URI}"
+echo "Pushed web image: ${IMAGE_URI}"
 echo "Image tag: ${IMAGE_TAG}"

@@ -16,8 +16,14 @@ variable "environment" {
   default     = "dev"
 }
 
-variable "image_tag" {
-  description = "Container image tag to deploy to both Lambda functions."
+variable "web_image_tag" {
+  description = "Container image tag to deploy to the ECS web service."
+  type        = string
+  default     = "latest"
+}
+
+variable "lambda_image_tag" {
+  description = "Container image tag to deploy to the ingestion Lambda."
   type        = string
   default     = "latest"
 }
@@ -28,16 +34,34 @@ variable "lambda_architecture" {
   default     = "x86_64"
 }
 
-variable "api_lambda_memory" {
-  description = "Memory size in MB for the API Lambda."
+variable "web_cpu" {
+  description = "CPU units for the web ECS task definition."
+  type        = number
+  default     = 512
+}
+
+variable "web_memory" {
+  description = "Memory in MiB for the web ECS task definition."
   type        = number
   default     = 1024
 }
 
-variable "api_lambda_timeout" {
-  description = "Timeout in seconds for the API Lambda."
+variable "web_desired_count" {
+  description = "Desired number of ECS web tasks."
   type        = number
-  default     = 29
+  default     = 1
+}
+
+variable "web_container_port" {
+  description = "Container port exposed by the FastAPI web container."
+  type        = number
+  default     = 8000
+}
+
+variable "health_check_path" {
+  description = "ALB health check path for the web service."
+  type        = string
+  default     = "/"
 }
 
 variable "ingestion_lambda_memory" {
@@ -53,7 +77,7 @@ variable "ingestion_lambda_timeout" {
 }
 
 variable "log_retention_days" {
-  description = "CloudWatch log retention for Lambda log groups."
+  description = "CloudWatch log retention for application logs."
   type        = number
   default     = 7
 }
@@ -62,6 +86,24 @@ variable "log_level" {
   description = "Runtime log level."
   type        = string
   default     = "INFO"
+}
+
+variable "vpc_cidr" {
+  description = "CIDR block for the ECS/ALB VPC."
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "public_subnet_a_cidr" {
+  description = "CIDR block for the first public subnet."
+  type        = string
+  default     = "10.0.1.0/24"
+}
+
+variable "public_subnet_b_cidr" {
+  description = "CIDR block for the second public subnet."
+  type        = string
+  default     = "10.0.2.0/24"
 }
 
 variable "database_url" {
@@ -141,7 +183,7 @@ variable "semantic_scholar_api_key_param_name" {
 }
 
 variable "plain_env_vars" {
-  description = "Additional non-secret environment variables to inject into both Lambda functions."
+  description = "Additional non-secret environment variables to inject into both the web service and ingestion Lambda."
   type        = map(string)
   default     = {}
 }

@@ -1,41 +1,63 @@
-# Cost-Optimized MVP AWS Deployment Plan
+# Phase 1 AWS Deployment Plan
 
-This document replaces the earlier App Runner + RDS + ECS plan with a lower-cost MVP shape that preserves the current FastAPI app, Postgres compatibility, and scheduled ingestion model.
+This document now reflects the current AWS shape for the project:
 
-## Objectives
-
-- remove always-on compute for the web tier
-- remove fixed RDS cost from the MVP path
-- preserve `seed`, `incremental`, and `reconcile` ingestion modes
-- keep a clean migration path back to AWS-native managed services later
-- target roughly `$10-$30/month` where traffic and AI usage remain modest
-
-## MVP Architecture
-
-- `Web API`: AWS Lambda running FastAPI through `Mangum`
-- `HTTP ingress`: API Gateway HTTP API
+- `Web app`: ECS Fargate running the FastAPI app from `uvicorn main:app`
+- `HTTP ingress`: Application Load Balancer
 - `Database`: external serverless Postgres such as `Neon` or `Supabase`
 - `Ingestion`: AWS Lambda
 - `Scheduler`: EventBridge Scheduler
-- `Config and secrets`: direct Lambda environment variables for local/dev, or SSM Parameter Store for production
+- `Config and secrets`: SSM Parameter Store or direct runtime environment variables
 - `Logs`: CloudWatch Logs with `7` day retention
-- `Container registry`: Amazon ECR for a shared Lambda container image
+- `Container registries`: separate ECR repositories for the web image and the ingestion Lambda image
 
-## Why this is cheaper
+## Objectives
 
-### App Runner replacement
+- avoid the Lambda cold-start problems seen with the old web tier
+- keep the web deployment simple and inexpensive
+- preserve `seed`, `incremental`, and `reconcile` ingestion modes
+- keep a clean path to HTTPS, private networking, or higher availability later
+- keep the deployment operationally small for an early-stage research site
 
-App Runner charges for provisioned memory even when traffic is low. Lambda does not. For an MVP research site with low or bursty traffic, Lambda + HTTP API removes the fixed always-on web tier cost.
+## Architecture
 
-### RDS replacement
+### Web tier
 
-Single-AZ RDS PostgreSQL is one of the biggest fixed costs in the previous plan. Neon or Supabase gives you Postgres compatibility without the baseline RDS instance charge.
+- ALB in two public subnets
+- ECS Fargate service with one task by default
+- task launched with a public IP
+- no NAT gateway
+- web container built from [Dockerfile](/home/ben/Desktop/website/Dockerfile)
 
-### ECS replacement
+### Ingestion tier
 
-Daily and weekly jobs are predictable, infrequent, and bounded. Lambda handles those schedules more cheaply than an ECS/Fargate task for this stage.
+- ingestion Lambda handler:
+  - `lambda_handlers.ingest.handler`
+- image built from [Dockerfile.lambda](/home/ben/Desktop/website/Dockerfile.lambda)
+- EventBridge daily incremental schedule
+- EventBridge weekly reconcile schedule
 
-## Runtime Split
+### Database
+
+- external Postgres via `DATABASE_URL`
+- `Preferred`: Neon
+- `Also viable`: Supabase
+
+## Why this shape
+
+### Why ECS for the web app
+
+The repo notes and CloudWatch history showed the server-rendered FastAPI app was a poor runtime fit for Lambda cold starts. ECS avoids the Mangum/Lambda adapter path and gives predictable startup behavior.
+
+### Why public subnets and no NAT
+
+The main cost driver in the earlier private-subnet Fargate design was the NAT gateway, not the app task itself. Running the web task in public subnets with security-group-restricted ingress keeps the architecture much cheaper while remaining acceptable for this low-traffic project stage.
+
+### Why Lambda for ingestion
+
+The ingestion workload is scheduled and bounded, which is still a good fit for Lambda. Keeping it on Lambda avoids unnecessary refactoring and preserves the cheap scheduler-driven batch model.
+
+## Runtime split
 
 ### Local development
 
@@ -44,49 +66,48 @@ Daily and weekly jobs are predictable, infrequent, and bounded. Lambda handles t
 - ingestion:
   - `python -m services.ingest --mode incremental --target-limit 250 --per-topic-limit 40 --overlap-days 3`
 
-### AWS MVP
+### AWS
 
-- API Lambda handler:
-  - `lambda_handlers.api.handler`
-- ingestion Lambda handler:
+- web:
+  - ECS Fargate task running the default command from [Dockerfile](/home/ben/Desktop/website/Dockerfile)
+- ingestion:
   - `lambda_handlers.ingest.handler`
 
-Both are built from the same Lambda image defined in [Dockerfile.lambda](/home/ben/Desktop/website/Dockerfile.lambda).
-
-## Database Strategy
-
-For the MVP, use serverless Postgres:
-
-- `Preferred`: Neon
-- `Also viable`: Supabase
-
-Requirements:
-
-- standard `postgresql://...` connection string
-- SSL enabled by the provider
-- connection pooling if the provider offers it
-
-The application remains Postgres-compatible through `DATABASE_URL`, so moving back to RDS later is a configuration and infrastructure change, not an application rewrite.
-
-## Secrets Strategy
+## Secrets strategy
 
 ### Local
 
-Use `.env` with placeholder-based examples from [.env.example](/home/ben/Desktop/website/.env.example) or [.env.postgres.example](/home/ben/Desktop/website/.env.postgres.example).
+Use `.env` with placeholders from [.env.example](/home/ben/Desktop/website/.env.example) or [.env.postgres.example](/home/ben/Desktop/website/.env.postgres.example).
 
-### AWS MVP
+### AWS
 
 Prefer SSM Parameter Store SecureString values:
 
-- `DATABASE_URL_PARAM`
-- `OPENAI_API_KEY_PARAM`
-- optional source parameter names
+- `DATABASE_URL`
+- `OPENAI_API_KEY`
+- optional source API values
 
-Direct environment variables are still supported, but Parameter Store is the safer default for production.
+Behavior differs by runtime:
 
-The Lambda handlers load SSM-backed values at cold start through [lambda_handlers/runtime_env.py](/home/ben/Desktop/website/lambda_handlers/runtime_env.py).
+- ECS web task:
+  - Terraform injects SSM-backed values as ECS task secrets
+- ingestion Lambda:
+  - [lambda_handlers/runtime_env.py](/home/ben/Desktop/website/lambda_handlers/runtime_env.py) hydrates values from `*_PARAM` env vars at runtime
 
-## Scheduling Plan
+## Networking
+
+Current cost-optimized networking shape:
+
+- one VPC
+- two public subnets
+- internet gateway
+- internet-facing ALB
+- ECS web task with a public IP
+- no NAT gateway
+
+This is intentionally not the highest-availability or highest-isolation design. It is the lowest-cost containerized web shape currently chosen for the repo.
+
+## Scheduling plan
 
 ### Daily incremental
 
@@ -110,63 +131,55 @@ The Lambda handlers load SSM-backed values at cold start through [lambda_handler
   - `per_topic_limit=60`
   - `reconcile_lookback_days=30`
 
-### One-time seed
-
-- run locally against the production Postgres URL
-- or invoke the ingestion Lambda manually with `mode=seed`
-
 ## Logging
 
-Use CloudWatch Logs only:
+Use CloudWatch Logs:
 
-- API Lambda log group retention: `7` days
+- ECS web log group retention: `7` days
 - ingestion Lambda log group retention: `7` days
 - keep `LOG_LEVEL=INFO` for production
-- avoid verbose debug logging unless diagnosing a live issue
 
-## Estimated Monthly Cost Range
+## Rough platform cost posture
 
-These are rough ranges and depend on traffic, execution time, and AI usage. They are intentionally directional rather than exact quotes.
+This design is materially cheaper than private-subnet Fargate with NAT, but more expensive than the old Lambda web MVP.
 
-| Component | Previous AWS-native plan | Cost-optimized MVP |
-| --- | ---: | ---: |
-| Web compute | App Runner: roughly `$20-$40+` baseline | Lambda + HTTP API: often `<$1-$5` at low traffic |
-| Database | RDS PostgreSQL Single-AZ: roughly `$15-$30+` baseline | Neon/Supabase free tier to roughly `$0-$10+` |
-| Scheduled jobs | ECS Fargate scheduled tasks: roughly `$5-$20+` | Lambda scheduled jobs: often `<$1-$3` |
-| Secrets/config | Secrets Manager: several dollars if used broadly | SSM Parameter Store: often `$0-$1` for MVP usage |
-| Logs | CloudWatch Logs: variable | CloudWatch Logs with short retention: low single digits |
-| Total platform | roughly `$40-$90+` before AI spend | roughly `$10-$30` before AI spend |
+Main fixed cost drivers now are:
 
-AI inference cost remains the wildcard in both architectures. The savings here are about the platform baseline.
+- ALB
+- public IPv4 charges
+- always-on single Fargate task
 
-## Migration Path Later
+NAT is intentionally absent to keep baseline cost lower.
 
-When traffic or ingestion volume grows, migrate selectively:
+## Migration path later
+
+When usage grows, migrate selectively:
+
+### Improve web resilience
+
+- raise ECS desired count above `1`
+- add HTTPS with ACM and Route53
+- move tasks to private subnets if stronger network isolation becomes worth the extra cost
 
 ### Move database back to AWS
 
 - swap Neon/Supabase `DATABASE_URL` for RDS or Aurora Postgres
 - keep the current Postgres-compatible database layer
 
-### Move ingestion back to ECS
+### Move ingestion later if needed
 
 - keep `services.ingest` as the shared entrypoint
-- move long-running or memory-heavy ingestion jobs to ECS/Fargate only if Lambda limits become restrictive
+- only move ingestion off Lambda if execution duration or memory limits become restrictive
 
-### Move web tier back to containers
+## Repo alignment
 
-- keep `main.py` unchanged
-- continue to support the existing local `uvicorn` entrypoint
-- deploy the same app to ECS or a future container service if sustained traffic makes Lambda less efficient
+The repo now supports this architecture through:
 
-## Repo Alignment
-
-The repo now supports this MVP shape with:
-
-- [lambda_handlers/api.py](/home/ben/Desktop/website/lambda_handlers/api.py)
-- [lambda_handlers/ingest.py](/home/ben/Desktop/website/lambda_handlers/ingest.py)
-- [lambda_handlers/runtime_env.py](/home/ben/Desktop/website/lambda_handlers/runtime_env.py)
-- [Dockerfile.lambda](/home/ben/Desktop/website/Dockerfile.lambda)
 - [infra/terraform/phase1](/home/ben/Desktop/website/infra/terraform/phase1)
+- [Dockerfile](/home/ben/Desktop/website/Dockerfile)
+- [Dockerfile.lambda](/home/ben/Desktop/website/Dockerfile.lambda)
+- [scripts/deploy_web_image.sh](/home/ben/Desktop/website/scripts/deploy_web_image.sh)
+- [scripts/deploy_lambda_image.sh](/home/ben/Desktop/website/scripts/deploy_lambda_image.sh)
+- [lambda_handlers/ingest.py](/home/ben/Desktop/website/lambda_handlers/ingest.py)
 
-This keeps the local developer workflow intact while removing the high fixed-cost services from the MVP path.
+The custom domain can be repointed later to the ALB once the new stack is verified.

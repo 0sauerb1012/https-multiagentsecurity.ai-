@@ -158,15 +158,16 @@ docker run --rm --env-file .env multiagentsecurity-ai:local \
   python -m services.ingest --mode incremental --target-limit 250 --per-topic-limit 40 --overlap-days 3
 ```
 
-## Cost-Optimized MVP Architecture
+## Current AWS Architecture
 
-The low-cost AWS MVP now uses:
+The current AWS deployment now uses:
 
-- AWS Lambda + API Gateway HTTP API for the FastAPI web app
+- ECS Fargate + Application Load Balancer for the FastAPI web app
 - Neon or Supabase for PostgreSQL-compatible persistence
-- a shared Lambda image for both the API and ingestion handlers
+- a dedicated web container image for the public site
+- a separate Lambda image for ingestion
 - EventBridge Scheduler for daily `incremental` and weekly `reconcile`
-- SSM Parameter Store or Lambda environment variables for secrets/config
+- SSM Parameter Store or direct runtime environment variables for secrets/config
 - CloudWatch Logs with short retention
 
 Core runtime entrypoints stay the same locally:
@@ -174,47 +175,54 @@ Core runtime entrypoints stay the same locally:
 - `uvicorn main:app --host 0.0.0.0 --port 8000`
 - `python -m services.ingest --mode incremental --target-limit 250 --per-topic-limit 40 --overlap-days 3`
 
-Additional Lambda entrypoints now exist:
+Additional runtime entrypoints now exist:
 
-- API handler: `lambda_handlers.api.handler`
+- web container: `uvicorn main:app --host 0.0.0.0 --port 8000`
 - ingestion handler: `lambda_handlers.ingest.handler`
 
 ### MVP deployment flow
 
 1. provision a serverless Postgres database in Neon or Supabase
 2. store `DATABASE_URL` and `OPENAI_API_KEY` as either:
-   - Lambda env vars
+   - direct runtime env vars
    - or SSM Parameter Store SecureString values
-3. build and push the Lambda image:
+3. build and push the web image:
+
+   ```bash
+   docker build -t multiagentsecurity-ai-web:latest .
+   ```
+
+4. build and push the ingestion Lambda image:
 
    ```bash
    docker build -f Dockerfile.lambda -t multiagentsecurity-ai-lambda:latest .
    ```
 
-4. deploy [infra/terraform/phase1](/home/ben/Desktop/website/infra/terraform/phase1)
-5. validate the HTTP API and scheduled jobs
+5. deploy [infra/terraform/phase1](/home/ben/Desktop/website/infra/terraform/phase1)
+6. validate the ALB-served web app and scheduled jobs
 
 ### Estimated monthly platform cost
 
 | Architecture | Estimated range |
 | --- | ---: |
-| Current AWS-native plan | `$40-$90+` before AI spend |
-| Cost-optimized MVP | `$10-$30` before AI spend |
+| Older Lambda MVP | `$10-$30` before AI spend |
+| Current ALB + ECS + Lambda split | roughly `$35-$55` before AI spend |
 | Future scalable architecture | `$50+` depending on RDS, ECS, and traffic |
 
 ### Migration notes
 
 - move back to `RDS` later by swapping `DATABASE_URL`
-- move ingestion back to `ECS` if Lambda timeout or memory becomes constraining
-- move web compute back to `ECS` or another container service if traffic becomes sustained enough to justify always-on compute
+- move ingestion to `ECS` or another longer-running worker model if Lambda timeout or memory becomes constraining
+- move the web tier to private subnets, HTTPS, or multiple ECS tasks if traffic or reliability needs grow
 
 ## AWS Phase 1
 
-The current Terraform in `infra/terraform/phase1` is now the cost-optimized MVP stack:
+The current Terraform in `infra/terraform/phase1` now defines:
 
-- ECR
-- API Lambda
-- API Gateway HTTP API
+- VPC with two public subnets
+- internet-facing ALB
+- ECS Fargate web service
+- separate ECR repositories for web and ingestion
 - ingestion Lambda
 - EventBridge Scheduler
 - CloudWatch log groups
@@ -236,4 +244,4 @@ See:
   - stronger relevance ranking
   - richer research gap detection
   - Postgres/RDS as a drop-in replacement for SQLite
-  - a future return to ECS or another container runtime if Lambda is outgrown
+  - higher-availability ECS or private-subnet networking later if needed

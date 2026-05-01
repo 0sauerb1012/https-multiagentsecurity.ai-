@@ -2,7 +2,18 @@ aws_region   = "us-east-1"
 project_name = "multiagentsecurity-ai"
 environment  = "dev"
 
-image_tag = "latest"
+web_image_tag    = "latest"
+lambda_image_tag = "latest"
+
+web_cpu            = 512
+web_memory         = 1024
+web_desired_count  = 1
+web_container_port = 8000
+health_check_path  = "/"
+
+vpc_cidr             = "10.0.0.0/16"
+public_subnet_a_cidr = "10.0.1.0/24"
+public_subnet_b_cidr = "10.0.2.0/24"
 
 # Prefer SSM parameter names so secrets do not live in Terraform state.
 database_url_param_name               = "/multiagentsecurity/dev/DATABASE_URL"

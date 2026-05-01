@@ -1,6 +1,10 @@
 # Dev Deploy Checklist
 
-Use this checklist for the first cost-optimized MVP deployment of `multiagentsecurity.ai`.
+Use this checklist for the current `multiagentsecurity.ai` AWS deployment:
+
+- public web app on ECS Fargate behind an ALB
+- ingestion on Lambda
+- external Postgres
 
 ## 1. Create the external Postgres database
 
@@ -83,7 +87,8 @@ aws_region   = "us-east-1"
 project_name = "multiagentsecurity-ai"
 environment  = "dev"
 
-image_tag = "2026-04-26-01"
+web_image_tag    = "2026-04-30-01"
+lambda_image_tag = "2026-04-30-01"
 
 database_url_param_name   = "/multiagentsecurity/dev/DATABASE_URL"
 openai_api_key_param_name = "/multiagentsecurity/dev/OPENAI_API_KEY"
@@ -98,24 +103,24 @@ openai_api_key = "sk-..."
 
 That is less safe and should stay out of committed files.
 
-## 4. Create the ECR repository
+## 4. Create the ECR repositories
 
-Initialize and apply Terraform once so the repository exists:
+Initialize and apply Terraform once so the repositories exist:
 
 ```bash
 terraform -chdir=infra/terraform/phase1 init
 terraform -chdir=infra/terraform/phase1 validate
-terraform -chdir=infra/terraform/phase1 apply -target=aws_ecr_repository.app
+terraform -chdir=infra/terraform/phase1 apply -target=aws_ecr_repository.web -target=aws_ecr_repository.app
 ```
 
-This lets you push the Lambda image before the full stack apply.
+This lets you push the web and Lambda images before the full stack apply.
 
-## 5. Build and push the Lambda image
+## 5. Build and push the web image
 
 Use the helper script:
 
 ```bash
-bash scripts/deploy_lambda_image.sh us-east-1 multiagentsecurity-ai-dev-lambda
+bash scripts/deploy_web_image.sh us-east-1 multiagentsecurity-ai-dev-web
 ```
 
 Script inputs:
@@ -127,18 +132,27 @@ Script inputs:
 
 The script:
 
+- builds [Dockerfile](/home/ben/Desktop/website/Dockerfile)
+- logs Docker into ECR
+- pushes the image
+- updates `web_image_tag` in your local `terraform.tfvars` if that file exists
+
+## 6. Build and push the ingestion Lambda image
+
+Use the existing helper script:
+
+```bash
+bash scripts/deploy_lambda_image.sh us-east-1 multiagentsecurity-ai-dev-lambda
+```
+
+The script:
+
 - builds [Dockerfile.lambda](/home/ben/Desktop/website/Dockerfile.lambda)
 - logs Docker into ECR
 - pushes the image
-- updates `image_tag` in your local `terraform.tfvars` if that file exists
+- updates `lambda_image_tag` in your local `terraform.tfvars` if that file exists
 
-If you want to force a specific tag:
-
-```bash
-bash scripts/deploy_lambda_image.sh us-east-1 multiagentsecurity-ai-dev-lambda 2026-04-26-02
-```
-
-## 6. Apply the full Terraform stack
+## 7. Apply the full Terraform stack
 
 ```bash
 terraform -chdir=infra/terraform/phase1 plan
@@ -147,21 +161,23 @@ terraform -chdir=infra/terraform/phase1 apply
 
 Expected created resources:
 
-- ECR repository
-- API Lambda
+- VPC
+- public ALB
+- ECS cluster
+- ECS task definition and service
+- web and ingestion ECR repositories
 - ingestion Lambda
-- API Gateway HTTP API
 - EventBridge daily schedule
 - EventBridge weekly schedule
 - CloudWatch log groups
 - IAM roles and policies
 
-## 7. Smoke test the deployed API
+## 8. Smoke test the deployed web app
 
-After apply, read the API URL from Terraform output:
+After apply, read the ALB DNS or URL from Terraform output:
 
 ```bash
-terraform -chdir=infra/terraform/phase1 output http_api_url
+terraform -chdir=infra/terraform/phase1 output web_url
 ```
 
 Then:
@@ -169,8 +185,9 @@ Then:
 - open the home page
 - open `/research-feed`
 - confirm page rendering succeeds with the external Postgres configuration
+- confirm CSS and JS load correctly
 
-## 8. Trigger ingestion manually once
+## 9. Trigger ingestion manually once
 
 Invoke the ingestion Lambda manually with `seed` or `incremental` mode.
 
@@ -186,7 +203,7 @@ cat /tmp/ingestion-response.json
 
 For first corpus load, use `seed` with tighter limits before doing a large ingest.
 
-## 9. Verify scheduled jobs
+## 10. Verify scheduled jobs
 
 Check that both schedules exist:
 
@@ -195,27 +212,27 @@ Check that both schedules exist:
 
 Then confirm CloudWatch logs show successful invocation.
 
-## 10. Recommended order for first real use
+## 11. Recommended order for first real use
 
 1. deploy infrastructure
-2. run a small manual `seed`
-3. confirm records are visible in the site
-4. run a small manual `incremental`
-5. leave schedules enabled
+2. push the web image
+3. push the ingestion Lambda image
+4. confirm the ALB-served site loads
+5. run a small manual `seed`
+6. confirm records are visible in the site
+7. run a small manual `incremental`
+8. leave schedules enabled
 
-## Current known blockers removed
+## Current known assumptions
 
-These were already addressed:
-
-- Postgres runtime path exists
-- Lambda handlers exist
-- Terraform validates
-- local Postgres smoke test passed
+- the web tier now runs as a single ECS task for cost reasons
+- the web tier sits in public subnets and has no NAT gateway
+- ingestion remains on Lambda
+- the custom domain can be repointed later to the ALB
 
 ## Remaining unknowns
 
-- first live Neon or Supabase connection from AWS Lambda
-- first real API Gateway rendering behavior in Lambda
+- first live ECS startup time and memory profile with `0.5 vCPU / 1 GB`
+- first real ALB health check behavior against the FastAPI container
+- first live Neon or Supabase connection from the ECS task
 - first full ingest execution duration and memory profile under Lambda limits
-
-If ingestion runs too long later, that is the signal to move only the ingestion worker back to ECS or another longer-running compute option.

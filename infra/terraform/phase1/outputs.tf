@@ -1,11 +1,11 @@
-output "ecr_repository_url" {
-  description = "ECR repository URL for the shared Lambda image."
+output "lambda_ecr_repository_url" {
+  description = "ECR repository URL for the ingestion Lambda image."
   value       = aws_ecr_repository.app.repository_url
 }
 
-output "api_lambda_name" {
-  description = "API Lambda function name."
-  value       = aws_lambda_function.api.function_name
+output "web_ecr_repository_url" {
+  description = "ECR repository URL for the ECS web image."
+  value       = aws_ecr_repository.web.repository_url
 }
 
 output "ingestion_lambda_name" {
@@ -13,9 +13,24 @@ output "ingestion_lambda_name" {
   value       = aws_lambda_function.ingestion.function_name
 }
 
-output "http_api_url" {
-  description = "Public HTTP API base URL."
-  value       = aws_apigatewayv2_stage.default.invoke_url
+output "alb_dns_name" {
+  description = "Public DNS name for the web Application Load Balancer."
+  value       = aws_lb.web.dns_name
+}
+
+output "web_url" {
+  description = "Public base URL for the ECS-hosted web app."
+  value       = "http://${aws_lb.web.dns_name}"
+}
+
+output "ecs_cluster_name" {
+  description = "ECS cluster name for the web service."
+  value       = aws_ecs_cluster.web.name
+}
+
+output "ecs_service_name" {
+  description = "ECS service name for the web service."
+  value       = aws_ecs_service.web.name
 }
 
 output "incremental_schedule_name" {
