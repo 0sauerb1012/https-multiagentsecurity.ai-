@@ -21,7 +21,7 @@
           <p class="meta">
             {{ card.paper.authors | join(", ") if card.paper.authors else "Unknown authors" }}
           </p>
-          <p class="meta">Published {{ card.paper.published[:10] if card.paper.published else "Unknown date" }}</p>
+          <p class="meta">Published {{ format_publication_date(card.paper.published) }}</p>
         </div>
         <div class="hero-panel">
           <p class="panel-eyebrow">Actions</p>

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 
+from services.date_utils import format_publication_date
 from services.research_hub import ResearchHubService
 from services.export_utils import build_ris, slugify_filename
 from services.topic_catalog import BROAD_AGENTIC_AI_TOPICS
@@ -969,6 +970,7 @@ def _base_context(*, active_page: str, **extra: object) -> dict:
         "site_nav": SITE_NAV,
         "active_page": active_page,
         "active_source_feeds": ACTIVE_SOURCE_FEEDS,
+        "format_publication_date": format_publication_date,
         **extra,
     }
 
@@ -1067,7 +1069,7 @@ async def _build_home_research_preview() -> list[dict[str, str]]:
 
     preview: list[dict[str, str]] = []
     for card in result.cards[:3]:
-        published = card.paper.published[:10] if card.paper.published else "Recent publication"
+        published = format_publication_date(card.paper.published) if card.paper.published else "Recent publication"
         summary = card.bullets[0] if card.bullets else card.paper.summary
         preview.append(
             {

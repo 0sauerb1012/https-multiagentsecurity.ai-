@@ -13,7 +13,7 @@ from typing import Iterator
 from api.app.config import settings
 from api.app.models import ReviewedPaper, SourceRecord
 
-from .date_utils import clamp_future_year
+from .date_utils import clamp_future_year, has_known_publication_date, parse_publication_datetime
 from .hub_types import HeatmapRow, LibraryCategoryGroup, PaperCard
 
 try:
@@ -282,16 +282,22 @@ class DatabaseService:
         query = """
             SELECT * FROM papers
             WHERE {is_fit_true_clause}
-            ORDER BY published DESC, fit_score DESC
         """
         query = query.format(is_fit_true_clause=self._is_fit_true_clause())
-        params: tuple[object, ...] = ()
-        if limit is not None:
-            query += f"\nLIMIT {self._placeholder()}"
-            params = (limit,)
         with self._connect() as connection:
-            rows = connection.execute(self._sql(query), params).fetchall()
-        return [self._row_to_card(row) for row in rows]
+            rows = connection.execute(self._sql(query)).fetchall()
+        cards = [self._row_to_card(row) for row in rows]
+        cards.sort(
+            key=lambda card: (
+                has_known_publication_date(card.paper.published),
+                parse_publication_datetime(card.paper.published) or datetime.min.replace(tzinfo=timezone.utc),
+                card.paper.fit_score,
+            ),
+            reverse=True,
+        )
+        if limit is not None:
+            return cards[:limit]
+        return cards
 
     def load_cards_by_source(self, *, source_filter: str, limit: int | None = None) -> list[PaperCard]:
         cards = self.load_cards()

@@ -15,7 +15,7 @@ from api.app.services.ranking import rank_papers
 from .categorization import HUB_CATEGORY_LABELS, PaperCategorizationService
 from .crossref import CrossrefClient
 from .database import DatabaseService
-from .date_utils import clamp_future_year
+from .date_utils import clamp_future_year, has_known_publication_date, parse_publication_datetime
 from .dblp import DblpClient
 from .hub_types import (
     HeatmapRow,
@@ -301,7 +301,14 @@ class ResearchHubService:
             )
 
         filtered_papers = await self._filter_for_multi_agent_security(merged_candidates, limit=limit)
-        newest_first = sorted(filtered_papers, key=lambda paper: self._parse_datetime(paper.published), reverse=True)[:limit]
+        newest_first = sorted(
+            filtered_papers,
+            key=lambda paper: (
+                has_known_publication_date(paper.published),
+                self._parse_datetime(paper.published),
+            ),
+            reverse=True,
+        )[:limit]
 
         cards = await self._run_limited(newest_first, self._build_card, concurrency=4)
         heatmap_rows, gap_labels, concentration_labels = self._build_heatmap(cards)
@@ -551,7 +558,14 @@ class ResearchHubService:
         accepted = [paper for paper in reviewed if paper.is_fit]
         classified = await self._run_limited(accepted, self._classify_reviewed_paper, concurrency=6)
         accepted = [paper for paper in classified if paper.is_fit and paper.hub_categories]
-        accepted.sort(key=lambda paper: (paper.fit_score, self._parse_datetime(paper.published)), reverse=True)
+        accepted.sort(
+            key=lambda paper: (
+                paper.fit_score,
+                has_known_publication_date(paper.published),
+                self._parse_datetime(paper.published),
+            ),
+            reverse=True,
+        )
         return accepted
 
     async def _review_candidate(self, paper: RankedPaper) -> ReviewedPaper:
@@ -623,10 +637,17 @@ class ResearchHubService:
         return await asyncio.gather(*(_run(item) for item in items))
 
     def _filter_recent_papers(self, papers: list[Paper], *, cutoff: datetime) -> list[Paper]:
-        return [paper for paper in papers if self._parse_datetime(paper.published) >= cutoff]
+        return [
+            paper
+            for paper in papers
+            if has_known_publication_date(paper.published) and self._parse_datetime(paper.published) >= cutoff
+        ]
 
     def _batch_is_before_cutoff(self, papers: list[Paper], cutoff: datetime) -> bool:
-        return bool(papers) and all(self._parse_datetime(paper.published) < cutoff for paper in papers)
+        return bool(papers) and all(
+            has_known_publication_date(paper.published) and self._parse_datetime(paper.published) < cutoff
+            for paper in papers
+        )
 
     @staticmethod
     def _cutoff_datetime(years_back: int) -> datetime:
@@ -753,7 +774,8 @@ class ResearchHubService:
                 recent_count = sum(
                     1
                     for card in row_cards
-                    if self._parse_datetime(card.paper.published) >= recent_threshold
+                    if has_known_publication_date(card.paper.published)
+                    and self._parse_datetime(card.paper.published) >= recent_threshold
                 )
                 nodes.append(
                     LandscapeNode(
@@ -778,13 +800,10 @@ class ResearchHubService:
 
     @staticmethod
     def _parse_datetime(value: str) -> datetime:
-        try:
-            parsed = datetime.fromisoformat(clamp_future_year(value).replace("Z", "+00:00"))
-            if parsed.tzinfo is None:
-                return parsed.replace(tzinfo=timezone.utc)
-            return parsed
-        except ValueError:
+        parsed = parse_publication_datetime(value)
+        if parsed is None:
             return datetime.min.replace(tzinfo=timezone.utc)
+        return parsed
 
     @staticmethod
     def slugify_category(value: str) -> str:
