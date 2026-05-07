@@ -87,6 +87,28 @@ Runtime behavior differs by compute type:
 - ECS web task: Terraform injects SSM-backed values into the task definition as ECS secrets
 - ingestion Lambda: the handler still loads SSM-backed values at runtime through [lambda_handlers/runtime_env.py](/home/ben/Desktop/website/lambda_handlers/runtime_env.py)
 
+## Custom domain cutover
+
+This stack can now manage a Route 53 hosted zone, ACM certificate validation, HTTPS on the ALB, and apex or `www` alias records for `multiagentsecurity.ai`.
+
+Use the variables in [terraform.tfvars.example](/home/ben/Desktop/website/infra/terraform/phase1/terraform.tfvars.example):
+
+- `enable_custom_domain = true` to enable ACM, HTTPS, and ALB alias records
+- `create_public_hosted_zone = true` if AWS should create the Route 53 public hosted zone
+- `hosted_zone_id` if the hosted zone already exists in Route 53
+- `dns_records` to preserve non-web records currently hosted at HostGator, such as mail, SPF, DKIM, DMARC, and cPanel-related records
+
+Typical migration flow:
+
+1. Copy the current HostGator DNS records into `dns_records`, excluding the apex and `www` website records.
+2. Set `enable_custom_domain = true`.
+3. Either set `create_public_hosted_zone = true` or provide `hosted_zone_id`.
+4. Run `terraform apply`.
+5. If Terraform created the hosted zone, update the registrar nameservers using the `route53_name_servers` output.
+6. Validate HTTPS using `custom_domain_url` after ACM finishes DNS validation.
+
+If you are not ready to move the registrar nameservers yet, leave `enable_custom_domain = false` and continue using the ALB DNS name from the `alb_dns_name` output for smoke testing.
+
 ## What this stack optimizes for
 
 - cheaper always-on web compute than a private-subnet Fargate design with NAT

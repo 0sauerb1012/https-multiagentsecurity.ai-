@@ -241,3 +241,44 @@ variable "reconcile_schedule_expression" {
   type        = string
   default     = "cron(0 12 ? * SUN *)"
 }
+
+variable "enable_custom_domain" {
+  description = "When true, provision Route 53, ACM, HTTPS listener, and alias records for a custom domain."
+  type        = bool
+  default     = false
+}
+
+variable "domain_name" {
+  description = "Apex custom domain name, for example multiagentsecurity.ai."
+  type        = string
+  default     = ""
+}
+
+variable "create_public_hosted_zone" {
+  description = "When true, create a Route 53 public hosted zone for the custom domain."
+  type        = bool
+  default     = false
+}
+
+variable "hosted_zone_id" {
+  description = "Existing Route 53 hosted zone ID to use instead of creating a new one."
+  type        = string
+  default     = ""
+}
+
+variable "create_www_record" {
+  description = "When true, create a www alias record alongside the apex alias."
+  type        = bool
+  default     = true
+}
+
+variable "dns_records" {
+  description = "Additional Route 53 records to preserve during DNS migration, excluding the apex and www web records."
+  type = list(object({
+    name    = string
+    type    = string
+    ttl     = number
+    records = list(string)
+  }))
+  default = []
+}

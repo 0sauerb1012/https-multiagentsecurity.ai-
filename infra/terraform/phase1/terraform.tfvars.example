@@ -28,5 +28,35 @@ plain_env_vars = {
   OPENAI_MODEL = "gpt-4.1-mini"
 }
 
+# Optional custom domain cutover to Route 53 and ALB HTTPS.
+enable_custom_domain   = false
+domain_name            = "multiagentsecurity.ai"
+create_public_hosted_zone = false
+hosted_zone_id         = ""
+create_www_record      = true
+
+# Preserve existing non-web HostGator records here when migrating DNS.
+# Leave the apex and www website records out of this list; Terraform manages
+# those separately as ALB alias records when custom domain support is enabled.
+dns_records = [
+  { name = "autoconfig", type = "A", ttl = 3600, records = ["50.6.252.207"] },
+  { name = "autodiscover", type = "A", ttl = 3600, records = ["50.6.252.207"] },
+  { name = "cpanel", type = "A", ttl = 14400, records = ["50.6.252.207"] },
+  { name = "ftp", type = "A", ttl = 14400, records = ["50.6.252.207"] },
+  { name = "mail", type = "A", ttl = 3600, records = ["50.6.252.207"] },
+  { name = "ssh", type = "A", ttl = 7200, records = ["50.6.252.207"] },
+  { name = "webdisk", type = "A", ttl = 3600, records = ["50.6.252.207"] },
+  { name = "webmail", type = "A", ttl = 14400, records = ["50.6.252.207"] },
+  { name = "whm", type = "A", ttl = 3600, records = ["50.6.252.207"] },
+  { name = "imap", type = "CNAME", ttl = 3600, records = ["mail.multiagentsecurity.ai"] },
+  { name = "pop", type = "CNAME", ttl = 3600, records = ["mail.multiagentsecurity.ai"] },
+  { name = "smtp", type = "CNAME", ttl = 3600, records = ["mail.multiagentsecurity.ai"] },
+  { name = "", type = "MX", ttl = 3600, records = ["10 mail.multiagentsecurity.ai"] },
+  { name = "_autodiscover._tcp", type = "SRV", ttl = 3600, records = ["0 0 443 cpanelemaildiscovery.cpanel.net"] },
+  { name = "default._domainkey", type = "TXT", ttl = 3600, records = ["v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1r3FiCPip37hPtDYvbgCqAH8TSDr92JicYQfkrRjIdKyBANJr516fWyHa+HbMJTDspixE5qA3mkfO1vWvsFx6YQZwI600wOAUtBNe9vgpX52cnOsNTtWii/xWMoPfbVBIHYeA8pSQ+HtKOQY+h5aPa2q0z9xY4Vcba0Bvdhe793AiLptIDn/0pnuYTuAiGTx6zF1BkziyM12b6FljJdmU5igLFVf3gioI2nHcGcy+B2RoPXXvTMNbS6URx8n2RuZZ7/qfaxb17/yQviaYNF+OlaVeiRbw9nlu50mKn9dhOzHW1WbmHS+rAM9oLDdwJ8KTGcG5oA89sKcmwV7bPbmiQIDAQAB;"] },
+  { name = "", type = "TXT", ttl = 3600, records = ["v=spf1 a mx include:websitewelcome.com ~all"] },
+  { name = "_dmarc", type = "TXT", ttl = 3600, records = ["v=DMARC1; p=none"] },
+]
+
 incremental_schedule_expression = "cron(0 11 * * ? *)"
 reconcile_schedule_expression   = "cron(0 12 ? * SUN *)"

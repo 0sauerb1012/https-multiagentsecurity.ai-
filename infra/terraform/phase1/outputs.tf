@@ -23,6 +23,26 @@ output "web_url" {
   value       = "http://${aws_lb.web.dns_name}"
 }
 
+output "custom_domain_url" {
+  description = "HTTPS URL for the custom domain when enabled."
+  value       = try("https://${aws_route53_record.apex_alias[0].fqdn}", null)
+}
+
+output "route53_zone_id" {
+  description = "Route 53 hosted zone ID for the custom domain."
+  value       = try(local.route53_zone_id, null)
+}
+
+output "route53_name_servers" {
+  description = "Route 53 public hosted zone name servers to set at the registrar."
+  value       = try(aws_route53_zone.primary[0].name_servers, [])
+}
+
+output "acm_certificate_arn" {
+  description = "ACM certificate ARN for the custom domain."
+  value       = try(aws_acm_certificate.web[0].arn, null)
+}
+
 output "ecs_cluster_name" {
   description = "ECS cluster name for the web service."
   value       = aws_ecs_cluster.web.name

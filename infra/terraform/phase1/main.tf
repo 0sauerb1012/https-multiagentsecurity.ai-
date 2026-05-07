@@ -5,9 +5,16 @@ data "aws_availability_zones" "available" {
 }
 
 locals {
-  name_prefix  = "${var.project_name}-${var.environment}"
-  lambda_image = "${aws_ecr_repository.app.repository_url}:${var.lambda_image_tag}"
-  web_image    = "${aws_ecr_repository.web.repository_url}:${var.web_image_tag}"
+  name_prefix          = "${var.project_name}-${var.environment}"
+  lambda_image         = "${aws_ecr_repository.app.repository_url}:${var.lambda_image_tag}"
+  web_image            = "${aws_ecr_repository.web.repository_url}:${var.web_image_tag}"
+  route53_zone_enabled = var.create_public_hosted_zone || var.hosted_zone_id != ""
+  custom_domain_name   = trim(var.domain_name, ".")
+  custom_domain_enabled = (
+    var.enable_custom_domain &&
+    local.route53_zone_enabled &&
+    local.custom_domain_name != ""
+  )
   parameter_names = compact([
     var.database_url_param_name,
     var.openai_api_key_param_name,
@@ -79,6 +86,28 @@ locals {
       RECONCILE_LOOKBACK_DAYS = tostring(var.reconcile_lookback_days)
     }
   )
+}
+
+resource "aws_route53_zone" "primary" {
+  count = var.create_public_hosted_zone ? 1 : 0
+  name  = local.custom_domain_name
+}
+
+locals {
+  route53_zone_id = var.create_public_hosted_zone ? aws_route53_zone.primary[0].zone_id : var.hosted_zone_id
+}
+
+resource "aws_route53_record" "preserved" {
+  for_each = local.route53_zone_enabled ? {
+    for index, record in var.dns_records :
+    "${upper(record.type)}-${record.name == "" ? "apex" : record.name}-${index}" => record
+  } : {}
+
+  zone_id = local.route53_zone_id
+  name    = each.value.name == "" ? local.custom_domain_name : "${each.value.name}.${local.custom_domain_name}"
+  type    = upper(each.value.type)
+  ttl     = each.value.ttl
+  records = each.value.records
 }
 
 resource "aws_ecr_repository" "app" {
@@ -161,6 +190,13 @@ resource "aws_security_group" "alb" {
   ingress {
     from_port   = 80
     to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -337,9 +373,102 @@ resource "aws_lb_listener" "http" {
   port              = 80
   protocol          = "HTTP"
 
+  dynamic "default_action" {
+    for_each = local.custom_domain_enabled ? [] : [1]
+
+    content {
+      type             = "forward"
+      target_group_arn = aws_lb_target_group.web.arn
+    }
+  }
+
+  dynamic "default_action" {
+    for_each = local.custom_domain_enabled ? [1] : []
+
+    content {
+      type = "redirect"
+
+      redirect {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+  }
+}
+
+resource "aws_acm_certificate" "web" {
+  count                     = local.custom_domain_enabled ? 1 : 0
+  domain_name               = local.custom_domain_name
+  subject_alternative_names = var.create_www_record ? ["www.${local.custom_domain_name}"] : []
+  validation_method         = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_route53_record" "web_cert_validation" {
+  for_each = local.custom_domain_enabled ? {
+    for dvo in aws_acm_certificate.web[0].domain_validation_options :
+    dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  } : {}
+
+  zone_id = local.route53_zone_id
+  name    = each.value.name
+  type    = each.value.type
+  ttl     = 300
+  records = [each.value.record]
+}
+
+resource "aws_acm_certificate_validation" "web" {
+  count = local.custom_domain_enabled ? 1 : 0
+
+  certificate_arn         = aws_acm_certificate.web[0].arn
+  validation_record_fqdns = [for record in aws_route53_record.web_cert_validation : record.fqdn]
+}
+
+resource "aws_lb_listener" "https" {
+  count             = local.custom_domain_enabled ? 1 : 0
+  load_balancer_arn = aws_lb.web.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  certificate_arn   = aws_acm_certificate_validation.web[0].certificate_arn
+
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.web.arn
+  }
+}
+
+resource "aws_route53_record" "apex_alias" {
+  count   = local.custom_domain_enabled ? 1 : 0
+  zone_id = local.route53_zone_id
+  name    = local.custom_domain_name
+  type    = "A"
+
+  alias {
+    name                   = aws_lb.web.dns_name
+    zone_id                = aws_lb.web.zone_id
+    evaluate_target_health = true
+  }
+}
+
+resource "aws_route53_record" "www_alias" {
+  count   = local.custom_domain_enabled && var.create_www_record ? 1 : 0
+  zone_id = local.route53_zone_id
+  name    = "www.${local.custom_domain_name}"
+  type    = "A"
+
+  alias {
+    name                   = aws_lb.web.dns_name
+    zone_id                = aws_lb.web.zone_id
+    evaluate_target_health = true
   }
 }
 
