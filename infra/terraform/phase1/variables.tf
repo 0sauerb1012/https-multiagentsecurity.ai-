@@ -52,6 +52,30 @@ variable "web_desired_count" {
   default     = 1
 }
 
+variable "web_autoscaling_enabled" {
+  description = "When true, enable ECS service autoscaling for the web service."
+  type        = bool
+  default     = true
+}
+
+variable "web_autoscaling_min_capacity" {
+  description = "Minimum number of ECS web tasks when autoscaling is enabled."
+  type        = number
+  default     = 1
+}
+
+variable "web_autoscaling_max_capacity" {
+  description = "Maximum number of ECS web tasks when autoscaling is enabled."
+  type        = number
+  default     = 3
+}
+
+variable "web_autoscaling_cpu_target" {
+  description = "Target average CPU utilization percentage for ECS web autoscaling."
+  type        = number
+  default     = 60
+}
+
 variable "web_container_port" {
   description = "Container port exposed by the FastAPI web container."
   type        = number
