@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.parse import quote_plus
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from services.date_utils import format_publication_date
@@ -34,7 +34,7 @@ SITE_NAV = [
     },
     {
         "label": "Signals",
-        "href": "/industry-intel",
+        "href": "/blog",
         "children": [
             {"label": "Blog", "href": "/blog"},
         ],
@@ -697,18 +697,7 @@ async def experiments(request: Request) -> HTMLResponse:
 
 @router.get("/industry-intel", response_class=HTMLResponse)
 async def industry_intel(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(
-        request,
-        "industry_intel.html",
-        _base_context(
-            active_page="/industry-intel",
-            intel_items=INDUSTRY_ITEMS,
-            intel_feeds=INDUSTRY_FEEDS,
-            intel_filter_keywords=INDUSTRY_FILTER_KEYWORDS,
-            intel_exclude_keywords=INDUSTRY_EXCLUDE_KEYWORDS,
-            intel_scoring_weights=INDUSTRY_SCORING_WEIGHTS,
-        ),
-    )
+    return RedirectResponse(url="/blog", status_code=307)
 
 
 @router.get("/about", response_class=HTMLResponse)
