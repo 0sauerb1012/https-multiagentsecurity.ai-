@@ -11,6 +11,7 @@ from .runtime_env import hydrate_runtime_env
 hydrate_runtime_env(
     (
         "DATABASE_URL",
+        "DATABASE_PASSWORD",
         "OPENAI_API_KEY",
         "OPENALEX_API_KEY",
         "OPENALEX_EMAIL",

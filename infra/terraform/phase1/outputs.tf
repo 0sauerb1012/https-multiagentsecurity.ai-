@@ -62,3 +62,23 @@ output "reconcile_schedule_name" {
   description = "EventBridge Scheduler name for the weekly reconcile job."
   value       = aws_scheduler_schedule.reconcile.name
 }
+
+output "managed_postgres_endpoint" {
+  description = "Endpoint for the managed PostgreSQL instance when enabled."
+  value       = try(aws_db_instance.postgres[0].address, null)
+}
+
+output "managed_postgres_port" {
+  description = "Port for the managed PostgreSQL instance when enabled."
+  value       = try(aws_db_instance.postgres[0].port, null)
+}
+
+output "managed_postgres_db_name" {
+  description = "Database name for the managed PostgreSQL instance when enabled."
+  value       = try(aws_db_instance.postgres[0].db_name, null)
+}
+
+output "managed_postgres_master_secret_arn" {
+  description = "Secrets Manager ARN holding the managed PostgreSQL master password when enabled."
+  value       = try(aws_db_instance.postgres[0].master_user_secret[0].secret_arn, null)
+}

@@ -16,7 +16,7 @@ locals {
     local.custom_domain_name != ""
   )
   parameter_names = compact([
-    var.database_url_param_name,
+    var.managed_postgres_enabled ? "" : var.database_url_param_name,
     var.openai_api_key_param_name,
     var.openalex_api_key_param_name,
     var.openalex_email_param_name,
@@ -37,7 +37,7 @@ locals {
     var.plain_env_vars,
   )
   direct_secret_env = merge(
-    var.database_url != "" ? { DATABASE_URL = var.database_url } : {},
+    (!var.managed_postgres_enabled && var.database_url != "") ? { DATABASE_URL = var.database_url } : {},
     var.openai_api_key != "" ? { OPENAI_API_KEY = var.openai_api_key } : {},
     var.openalex_api_key != "" ? { OPENALEX_API_KEY = var.openalex_api_key } : {},
     var.openalex_email != "" ? { OPENALEX_EMAIL = var.openalex_email } : {},
@@ -45,16 +45,34 @@ locals {
     var.semantic_scholar_api_key != "" ? { SEMANTIC_SCHOLAR_API_KEY = var.semantic_scholar_api_key } : {},
   )
   parameter_secret_env = merge(
-    var.database_url_param_name != "" ? { DATABASE_URL_PARAM = var.database_url_param_name } : {},
+    (!var.managed_postgres_enabled && var.database_url_param_name != "") ? { DATABASE_URL_PARAM = var.database_url_param_name } : {},
     var.openai_api_key_param_name != "" ? { OPENAI_API_KEY_PARAM = var.openai_api_key_param_name } : {},
     var.openalex_api_key_param_name != "" ? { OPENALEX_API_KEY_PARAM = var.openalex_api_key_param_name } : {},
     var.openalex_email_param_name != "" ? { OPENALEX_EMAIL_PARAM = var.openalex_email_param_name } : {},
     var.crossref_email_param_name != "" ? { CROSSREF_EMAIL_PARAM = var.crossref_email_param_name } : {},
     var.semantic_scholar_api_key_param_name != "" ? { SEMANTIC_SCHOLAR_API_KEY_PARAM = var.semantic_scholar_api_key_param_name } : {},
   )
+  managed_database_env = var.managed_postgres_enabled ? {
+    DATABASE_HOST    = aws_db_instance.postgres[0].address
+    DATABASE_PORT    = tostring(aws_db_instance.postgres[0].port)
+    DATABASE_NAME    = var.managed_postgres_db_name
+    DATABASE_USER    = var.managed_postgres_username
+    DATABASE_SSLMODE = "require"
+  } : {}
+  managed_database_lambda_secret_env = (
+    var.managed_postgres_enabled && var.lambda_vpc_enabled
+    ) ? {
+    DATABASE_PASSWORD_SECRET_ARN = aws_db_instance.postgres[0].master_user_secret[0].secret_arn
+  } : {}
+  managed_database_web_secret_arn = var.managed_postgres_enabled ? aws_db_instance.postgres[0].master_user_secret[0].secret_arn : ""
+  secret_arns = compact([
+    var.managed_postgres_enabled && var.lambda_vpc_enabled ? aws_db_instance.postgres[0].master_user_secret[0].secret_arn : "",
+    var.managed_postgres_enabled ? aws_db_instance.postgres[0].master_user_secret[0].secret_arn : "",
+  ])
   web_environment = merge(
     local.runtime_env_common,
     local.direct_secret_env,
+    local.managed_database_env,
     {
       HOST = "0.0.0.0"
       PORT = tostring(var.web_container_port)
@@ -62,7 +80,8 @@ locals {
   )
   web_secrets = [
     for pair in [
-      { name = "DATABASE_URL", value_from = var.database_url_param_name },
+      { name = "DATABASE_URL", value_from = var.managed_postgres_enabled ? "" : var.database_url_param_name },
+      { name = "DATABASE_PASSWORD", value_from = local.managed_database_web_secret_arn },
       { name = "OPENAI_API_KEY", value_from = var.openai_api_key_param_name },
       { name = "OPENALEX_API_KEY", value_from = var.openalex_api_key_param_name },
       { name = "OPENALEX_EMAIL", value_from = var.openalex_email_param_name },
@@ -77,6 +96,8 @@ locals {
     local.runtime_env_common,
     local.direct_secret_env,
     local.parameter_secret_env,
+    local.managed_database_env,
+    local.managed_database_lambda_secret_env,
     {
       INGEST_MODE             = "incremental"
       TARGET_LIMIT            = tostring(var.incremental_target_limit)
@@ -162,6 +183,18 @@ resource "aws_subnet" "public_b" {
   map_public_ip_on_launch = true
 }
 
+resource "aws_subnet" "private_a" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_subnet_a_cidr
+  availability_zone = data.aws_availability_zones.available.names[0]
+}
+
+resource "aws_subnet" "private_b" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_subnet_b_cidr
+  availability_zone = data.aws_availability_zones.available.names[1]
+}
+
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 }
@@ -229,6 +262,90 @@ resource "aws_security_group" "ecs_web" {
   }
 }
 
+resource "aws_security_group" "lambda_vpc" {
+  count       = var.lambda_vpc_enabled ? 1 : 0
+  name        = "${local.name_prefix}-lambda-vpc"
+  description = "Allow the ingestion Lambda to access private resources in the VPC."
+  vpc_id      = aws_vpc.main.id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_security_group" "postgres" {
+  count       = var.managed_postgres_enabled ? 1 : 0
+  name        = "${local.name_prefix}-postgres"
+  description = "Allow application access to the managed PostgreSQL instance."
+  vpc_id      = aws_vpc.main.id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_security_group_rule" "postgres_ingress_from_ecs" {
+  count                    = var.managed_postgres_enabled ? 1 : 0
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.postgres[0].id
+  source_security_group_id = aws_security_group.ecs_web.id
+  description              = "Allow ECS web tasks to connect to the managed PostgreSQL instance."
+}
+
+resource "aws_security_group_rule" "postgres_ingress_from_lambda" {
+  count                    = var.managed_postgres_enabled && var.lambda_vpc_enabled ? 1 : 0
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.postgres[0].id
+  source_security_group_id = aws_security_group.lambda_vpc[0].id
+  description              = "Allow the ingestion Lambda to connect to the managed PostgreSQL instance."
+}
+
+resource "aws_db_subnet_group" "postgres" {
+  count      = var.managed_postgres_enabled ? 1 : 0
+  name       = "${local.name_prefix}-postgres"
+  subnet_ids = [aws_subnet.private_a.id, aws_subnet.private_b.id]
+
+  tags = {
+    Name = "${local.name_prefix}-postgres"
+  }
+}
+
+resource "aws_db_instance" "postgres" {
+  count                       = var.managed_postgres_enabled ? 1 : 0
+  identifier                  = "${local.name_prefix}-postgres"
+  engine                      = "postgres"
+  engine_version              = var.managed_postgres_engine_version
+  instance_class              = var.managed_postgres_instance_class
+  allocated_storage           = var.managed_postgres_allocated_storage
+  db_name                     = var.managed_postgres_db_name
+  username                    = var.managed_postgres_username
+  manage_master_user_password = true
+  db_subnet_group_name        = aws_db_subnet_group.postgres[0].name
+  vpc_security_group_ids      = [aws_security_group.postgres[0].id]
+  publicly_accessible         = var.managed_postgres_publicly_accessible
+  backup_retention_period     = var.managed_postgres_backup_retention_period
+  deletion_protection         = var.managed_postgres_deletion_protection
+  skip_final_snapshot         = var.managed_postgres_skip_final_snapshot
+  storage_encrypted           = true
+  auto_minor_version_upgrade  = true
+
+  tags = {
+    Name = "${local.name_prefix}-postgres"
+  }
+}
+
 data "aws_iam_policy_document" "lambda_assume" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -250,12 +367,27 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
+  count      = var.lambda_vpc_enabled ? 1 : 0
+  role       = aws_iam_role.lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
 data "aws_iam_policy_document" "lambda_ssm" {
   count = length(local.parameter_arns) > 0 ? 1 : 0
 
   statement {
     actions   = ["ssm:GetParameter", "ssm:GetParameters"]
     resources = local.parameter_arns
+  }
+}
+
+data "aws_iam_policy_document" "lambda_secrets" {
+  count = var.managed_postgres_enabled && var.lambda_vpc_enabled ? 1 : 0
+
+  statement {
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = local.secret_arns
   }
 }
 
@@ -269,6 +401,18 @@ resource "aws_iam_role_policy_attachment" "lambda_ssm" {
   count      = length(local.parameter_arns) > 0 ? 1 : 0
   role       = aws_iam_role.lambda.name
   policy_arn = aws_iam_policy.lambda_ssm[0].arn
+}
+
+resource "aws_iam_policy" "lambda_secrets" {
+  count  = var.managed_postgres_enabled && var.lambda_vpc_enabled ? 1 : 0
+  name   = "${local.name_prefix}-lambda-secrets"
+  policy = data.aws_iam_policy_document.lambda_secrets[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_secrets" {
+  count      = var.managed_postgres_enabled && var.lambda_vpc_enabled ? 1 : 0
+  role       = aws_iam_role.lambda.name
+  policy_arn = aws_iam_policy.lambda_secrets[0].arn
 }
 
 resource "aws_lambda_function" "ingestion" {
@@ -286,6 +430,15 @@ resource "aws_lambda_function" "ingestion" {
 
   environment {
     variables = local.ingestion_environment
+  }
+
+  dynamic "vpc_config" {
+    for_each = var.lambda_vpc_enabled ? [1] : []
+
+    content {
+      security_group_ids = [aws_security_group.lambda_vpc[0].id]
+      subnet_ids         = [aws_subnet.private_a.id, aws_subnet.private_b.id]
+    }
   }
 
   depends_on = [aws_cloudwatch_log_group.ingestion]
@@ -326,6 +479,15 @@ data "aws_iam_policy_document" "ecs_ssm" {
   }
 }
 
+data "aws_iam_policy_document" "ecs_secrets" {
+  count = var.managed_postgres_enabled ? 1 : 0
+
+  statement {
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = local.secret_arns
+  }
+}
+
 resource "aws_iam_policy" "ecs_ssm" {
   count  = length(local.parameter_arns) > 0 ? 1 : 0
   name   = "${local.name_prefix}-ecs-ssm"
@@ -336,6 +498,18 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_ssm" {
   count      = length(local.parameter_arns) > 0 ? 1 : 0
   role       = aws_iam_role.ecs_task_execution.name
   policy_arn = aws_iam_policy.ecs_ssm[0].arn
+}
+
+resource "aws_iam_policy" "ecs_secrets" {
+  count  = var.managed_postgres_enabled ? 1 : 0
+  name   = "${local.name_prefix}-ecs-secrets"
+  policy = data.aws_iam_policy_document.ecs_secrets[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_secrets" {
+  count      = var.managed_postgres_enabled ? 1 : 0
+  role       = aws_iam_role.ecs_task_execution.name
+  policy_arn = aws_iam_policy.ecs_secrets[0].arn
 }
 
 resource "aws_ecs_cluster" "web" {

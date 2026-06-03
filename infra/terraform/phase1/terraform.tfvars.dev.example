@@ -14,6 +14,23 @@ health_check_path  = "/"
 vpc_cidr             = "10.0.0.0/16"
 public_subnet_a_cidr = "10.0.1.0/24"
 public_subnet_b_cidr = "10.0.2.0/24"
+private_subnet_a_cidr = "10.0.11.0/24"
+private_subnet_b_cidr = "10.0.12.0/24"
+
+# Optional AWS-managed PostgreSQL for same-region app/database traffic.
+managed_postgres_enabled                 = false
+managed_postgres_db_name                 = "researchhub"
+managed_postgres_username                = "researchhub_admin"
+managed_postgres_instance_class          = "db.t4g.micro"
+managed_postgres_allocated_storage       = 20
+managed_postgres_engine_version          = "16.3"
+managed_postgres_backup_retention_period = 7
+managed_postgres_deletion_protection     = true
+managed_postgres_skip_final_snapshot     = false
+managed_postgres_publicly_accessible     = false
+
+# Leave false unless you intentionally move ingestion Lambda into the VPC.
+lambda_vpc_enabled = false
 
 # Preferred: SSM SecureString parameters
 database_url_param_name             = "/multiagentsecurity/dev/DATABASE_URL"

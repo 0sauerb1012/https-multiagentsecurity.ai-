@@ -130,6 +130,18 @@ variable "public_subnet_b_cidr" {
   default     = "10.0.2.0/24"
 }
 
+variable "private_subnet_a_cidr" {
+  description = "CIDR block for the first private subnet used by managed databases and optional Lambda VPC access."
+  type        = string
+  default     = "10.0.11.0/24"
+}
+
+variable "private_subnet_b_cidr" {
+  description = "CIDR block for the second private subnet used by managed databases and optional Lambda VPC access."
+  type        = string
+  default     = "10.0.12.0/24"
+}
+
 variable "database_url" {
   description = "Optional direct DATABASE_URL value. Prefer SSM parameter names for production."
   type        = string
@@ -141,6 +153,72 @@ variable "database_url_param_name" {
   description = "Optional SSM parameter name containing DATABASE_URL."
   type        = string
   default     = ""
+}
+
+variable "managed_postgres_enabled" {
+  description = "When true, provision an Amazon RDS PostgreSQL instance in private subnets."
+  type        = bool
+  default     = false
+}
+
+variable "managed_postgres_db_name" {
+  description = "Database name for the managed PostgreSQL instance."
+  type        = string
+  default     = "researchhub"
+}
+
+variable "managed_postgres_username" {
+  description = "Master username for the managed PostgreSQL instance."
+  type        = string
+  default     = "researchhub_admin"
+}
+
+variable "managed_postgres_instance_class" {
+  description = "RDS instance class for the managed PostgreSQL instance."
+  type        = string
+  default     = "db.t4g.micro"
+}
+
+variable "managed_postgres_allocated_storage" {
+  description = "Allocated storage in GiB for the managed PostgreSQL instance."
+  type        = number
+  default     = 20
+}
+
+variable "managed_postgres_engine_version" {
+  description = "PostgreSQL engine version for the managed PostgreSQL instance."
+  type        = string
+  default     = "16.3"
+}
+
+variable "managed_postgres_backup_retention_period" {
+  description = "Backup retention in days for the managed PostgreSQL instance."
+  type        = number
+  default     = 7
+}
+
+variable "managed_postgres_deletion_protection" {
+  description = "Whether to enable deletion protection on the managed PostgreSQL instance."
+  type        = bool
+  default     = true
+}
+
+variable "managed_postgres_skip_final_snapshot" {
+  description = "Whether to skip the final snapshot when destroying the managed PostgreSQL instance."
+  type        = bool
+  default     = false
+}
+
+variable "managed_postgres_publicly_accessible" {
+  description = "Whether the managed PostgreSQL instance should have a public endpoint."
+  type        = bool
+  default     = false
+}
+
+variable "lambda_vpc_enabled" {
+  description = "When true, attach the ingestion Lambda to the VPC private subnets so it can reach a private RDS instance."
+  type        = bool
+  default     = false
 }
 
 variable "openai_api_key" {

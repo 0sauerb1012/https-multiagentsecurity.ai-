@@ -11,17 +11,46 @@ This directory now defines the current deployment shape for `multiagentsecurity.
 - EventBridge Scheduler for daily and weekly ingestion runs
 - CloudWatch log groups with short retention
 - optional SSM Parameter Store integration for secrets
+- optional Amazon RDS for PostgreSQL in private subnets
 
-It intentionally does not create RDS, API Gateway, NAT gateways, private subnets, or App Runner resources.
+It intentionally does not create NAT gateways, API Gateway, or App Runner resources.
 
 ## External database
 
-For this stack, use an external Postgres provider such as Neon or Supabase and supply its connection string through either:
+For this stack, you can use either:
+
+- an external Postgres provider such as Neon or Supabase
+- or the optional managed RDS PostgreSQL instance in this Terraform stack
+
+In both cases, the application still uses `DATABASE_URL` through either:
 
 - `database_url`
 - or `database_url_param_name`
 
 `database_url_param_name` is the preferred path because it keeps the secret out of Terraform configuration.
+
+## Managed RDS notes
+
+If `managed_postgres_enabled = true`, Terraform creates:
+
+- two private subnets for the database tier
+- a DB subnet group
+- an RDS PostgreSQL instance
+- an AWS-managed master password stored in Secrets Manager
+- security-group rules allowing the ECS web tasks to reach the database
+
+If you also set `lambda_vpc_enabled = true`, Terraform attaches the ingestion Lambda to the same VPC so it can reach a private RDS instance.
+
+Important operational constraint:
+
+- a Lambda function attached to your VPC does not keep direct internet egress
+- this ingestion job talks to external APIs, so private-subnet Lambda access usually requires a NAT gateway or a different runtime shape
+- this stack does not create a NAT gateway, because the baseline design was chosen to avoid that fixed cost
+
+Practical implication:
+
+- `managed_postgres_enabled = true` is enough for the ECS web app to stop talking to Neon over the internet
+- only enable `lambda_vpc_enabled` when you are also ready to handle Lambda egress separately, or when ingestion is moved off Lambda
 
 ## Usage
 
@@ -36,6 +65,7 @@ cp terraform.tfvars.example terraform.tfvars
 - `database_url_param_name` or `database_url`
 - `openai_api_key_param_name` or `openai_api_key`
 - optional source API and contact settings
+- if using RDS: `managed_postgres_*` values
 
 3. Initialize Terraform:
 
@@ -86,6 +116,10 @@ Runtime behavior differs by compute type:
 
 - ECS web task: Terraform injects SSM-backed values into the task definition as ECS secrets
 - ingestion Lambda: the handler still loads SSM-backed values at runtime through [lambda_handlers/runtime_env.py](/home/ben/Desktop/website/lambda_handlers/runtime_env.py)
+
+If you provision the managed RDS instance, update your SSM `DATABASE_URL` parameter after Terraform creates the DB endpoint. The app code is already Postgres-compatible; the cutover is a connection-string change plus data migration.
+
+For the managed RDS path, the application no longer needs a database password in `terraform.tfvars`. Terraform lets RDS store the master password in Secrets Manager and injects or fetches that secret at runtime.
 
 ## Custom domain cutover
 
