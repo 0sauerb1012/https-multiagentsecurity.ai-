@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>arXiv Agent Search</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">LangGraph + OpenAI + arXiv</p>
+        <h1>Search papers through a five-agent research desk.</h1>
+        <p class="lede">
+          One agent plans the arXiv query. A second agent reviews fit. A third agent reads the paper
+          and writes key bullet points from the full text. A fourth agent audits the whole workflow.
+          A fifth agent synthesizes literature review outlines from Zotero.
+        </p>
+      </section>
+
+      <section class="agent-strip">
+        <article class="agent-card" data-agent="search">
+          <p class="agent-kicker">Agent 1</p>
+          <h2>Search Agent</h2>
+          <p>Builds the arXiv query and pulls candidate papers.</p>
+        </article>
+        <article class="agent-card" data-agent="review">
+          <p class="agent-kicker">Agent 2</p>
+          <h2>Review Agent</h2>
+          <p>Checks whether each paper actually fits your topic.</p>
+        </article>
+        <article class="agent-card" data-agent="summary">
+          <p class="agent-kicker">Agent 3</p>
+          <h2>Summary Agent</h2>
+          <p>Reads the paper PDF and writes 5-10 key bullet points.</p>
+        </article>
+        <article class="agent-card" data-agent="sanity">
+          <p class="agent-kicker">Agent 4</p>
+          <h2>Sanity Agent</h2>
+          <p>Checks that query, review, and summary outputs are internally consistent.</p>
+        </article>
+        <article class="agent-card" data-agent="outline">
+          <p class="agent-kicker">Agent 5</p>
+          <h2>Outline Agent</h2>
+          <p>Builds a literature review outline from accepted Zotero references.</p>
+        </article>
+      </section>
+
+      <section class="panel search-panel">
+        <form id="search-form">
+          <div class="mode-tabs" role="tablist" aria-label="Discovery mode">
+            <button
+              type="button"
+              class="mode-tab active"
+              id="search-tab"
+              data-mode="search"
+              role="tab"
+              aria-selected="true"
+            >
+              Search arXiv
+            </button>
+            <button
+              type="button"
+              class="mode-tab"
+              id="upload-tab"
+              data-mode="upload"
+              role="tab"
+              aria-selected="false"
+            >
+              Upload + Analyze
+            </button>
+            <button
+              type="button"
+              class="mode-tab"
+              id="organize-tab"
+              data-mode="organize"
+              role="tab"
+              aria-selected="false"
+            >
+              Upload + Organize
+            </button>
+            <button
+              type="button"
+              class="mode-tab"
+              id="zotero-tab"
+              data-mode="zotero"
+              role="tab"
+              aria-selected="false"
+            >
+              Zotero API
+            </button>
+            <button
+              type="button"
+              class="mode-tab"
+              id="literature-tab"
+              data-mode="literature"
+              role="tab"
+              aria-selected="false"
+            >
+              Literature Outline
+            </button>
+          </div>
+          <div id="search-description" class="mode-description" data-mode-description="search">
+            <strong>Search arXiv</strong>
+            <p>Build an arXiv query from your topic, retrieve candidate papers, score their fit, summarize accepted results, and optionally save accepted papers to Zotero.</p>
+          </div>
+          <div id="upload-description" class="mode-description hidden" data-mode-description="upload">
+            <strong>Upload + Analyze</strong>
+            <p>Read your uploaded PDFs or Zotero RDF entries, compare each reference against the topic above, keep the best fits, and generate bullet summaries for export.</p>
+          </div>
+          <div id="organize-description" class="mode-description hidden" data-mode-description="organize">
+            <strong>Upload + Organize</strong>
+            <p>Read uploaded PDFs or Zotero RDF entries without topic scoring, generate bullet summaries for every reference, and prepare the full set for Excel export.</p>
+          </div>
+          <div id="zotero-description" class="mode-description hidden" data-mode-description="zotero">
+            <strong>Zotero API</strong>
+            <p>Connect to a personal Zotero library with your username and API key, fetch library items, score them against the topic above, export summarized results, and optionally prune duplicates or low-score items.</p>
+          </div>
+          <div id="literature-description" class="mode-description hidden" data-mode-description="literature">
+            <strong>Literature Outline</strong>
+            <p>Read a Zotero personal library, let a dedicated outline agent synthesize a literature review structure, and export the result as a Word document with inline APA citations.</p>
+          </div>
+          <div id="topic-section">
+            <label class="label" for="topic">Research topic</label>
+            <div class="search-row">
+              <input
+                id="topic"
+                name="topic"
+                type="text"
+                placeholder="graph neural networks for drug discovery"
+                required
+              />
+            </div>
+          </div>
+
+          <div id="organize-header" class="organize-header hidden">
+            <p class="label">Uploaded paper organization</p>
+            <div class="search-row organize-row">
+              <p class="organize-copy">
+                Read uploaded PDFs, generate bullet summaries, and prepare everything for export.
+              </p>
+            </div>
+          </div>
+          <div class="submit-row">
+            <button id="submit-button" type="submit">Search</button>
+          </div>
+
+          <div id="search-fields" class="filters mode-panel active" data-mode-panel="search">
+            <label>
+              <span>Category</span>
+              <select id="category"></select>
+            </label>
+            <label>
+              <span>Include terms</span>
+              <input id="include-terms" type="text" placeholder="molecular property prediction" />
+            </label>
+            <label>
+              <span>Exclude terms</span>
+              <input id="exclude-terms" type="text" placeholder="survey" />
+            </label>
+            <label>
+              <span>Max results</span>
+              <input id="max-results" type="number" min="1" max="25" value="5" />
+            </label>
+            <label>
+              <span>Min fit score</span>
+              <input id="min-fit-score-search" type="number" min="0" step="0.5" value="2.0" />
+            </label>
+            <label class="toggle">
+              <span>Show rejected papers</span>
+              <input id="include-rejected-search" type="checkbox" />
+            </label>
+            <label class="toggle zotero-save-toggle">
+              <span>Save accepted papers to Zotero</span>
+              <input id="save-to-zotero-search" type="checkbox" />
+            </label>
+            <label id="search-zotero-api-key-wrapper" class="hidden">
+              <span>Zotero API key</span>
+              <input id="search-zotero-api-key" type="password" placeholder="Write-enabled Zotero API key" />
+            </label>
+            <label id="search-zotero-username-wrapper" class="hidden">
+              <span>Zotero username</span>
+              <input id="search-zotero-username" type="text" placeholder="optional-username-for-labeling" />
+            </label>
+          </div>
+
+          <div id="upload-fields" class="filters mode-panel hidden" data-mode-panel="upload">
+            <label>
+              <span>Upload PDFs or Zotero RDF</span>
+              <input id="pdf-files" type="file" accept=".pdf,.rdf,application/pdf,application/rdf+xml,text/xml" multiple />
+            </label>
+            <label>
+              <span>Min fit score</span>
+              <input id="min-fit-score-upload" type="number" min="0" step="0.5" value="2.0" />
+            </label>
+            <label>
+              <span>Upload notes</span>
+              <input id="upload-note-field" type="text" placeholder="Analyze a local PDF batch against the topic above" disabled />
+            </label>
+            <label class="toggle upload-toggle">
+              <span>Show rejected papers</span>
+              <input id="include-rejected-upload" type="checkbox" />
+            </label>
+          </div>
+
+          <div id="organize-fields" class="filters mode-panel hidden" data-mode-panel="organize">
+            <label>
+              <span>Upload PDFs or Zotero RDF</span>
+              <input id="pdf-files-organize" type="file" accept=".pdf,.rdf,application/pdf,application/rdf+xml,text/xml" multiple />
+            </label>
+            <label>
+              <span>Mode</span>
+              <input id="organize-note-field" type="text" value="Summarize and organize uploaded papers without scoring" disabled />
+            </label>
+          </div>
+
+          <div id="zotero-fields" class="filters mode-panel hidden" data-mode-panel="zotero">
+            <label>
+              <span>Zotero username</span>
+              <input id="zotero-username" type="text" placeholder="your-zotero-username" />
+            </label>
+            <label>
+              <span>Zotero API key</span>
+              <input id="zotero-api-key" type="password" placeholder="Personal library API key" />
+            </label>
+            <label>
+              <span>Max items</span>
+              <input id="zotero-max-items" type="number" min="1" max="500" value="100" />
+            </label>
+            <label>
+              <span>Min fit score</span>
+              <input id="min-fit-score-zotero" type="number" min="0" step="0.5" value="2.0" />
+            </label>
+            <label class="toggle">
+              <span>Show rejected papers</span>
+              <input id="include-rejected-zotero" type="checkbox" />
+            </label>
+            <label class="toggle">
+              <span>Delete items below min fit score</span>
+              <input id="delete-below-score-zotero" type="checkbox" />
+            </label>
+            <label class="toggle">
+              <span>Delete duplicate titles</span>
+              <input id="delete-duplicates-zotero" type="checkbox" />
+            </label>
+          </div>
+
+          <div id="literature-fields" class="filters mode-panel hidden" data-mode-panel="literature">
+            <label>
+              <span>Zotero username</span>
+              <input id="literature-zotero-username" type="text" placeholder="your-zotero-username" />
+            </label>
+            <label>
+              <span>Zotero API key</span>
+              <input id="literature-zotero-api-key" type="password" placeholder="Personal library API key" />
+            </label>
+            <label>
+              <span>Max items</span>
+              <input id="literature-zotero-max-items" type="number" min="1" max="500" value="100" />
+            </label>
+            <label>
+              <span>Min fit score</span>
+              <input id="literature-min-fit-score" type="number" min="0" step="0.5" value="2.0" />
+            </label>
+            <label class="toggle">
+              <span>Include rejected papers in outline context</span>
+              <input id="literature-include-rejected" type="checkbox" />
+            </label>
+          </div>
+
+          <p id="mode-note" class="upload-note">
+            Search mode builds an arXiv query. Switch to Upload PDFs to score and summarize local files.
+          </p>
+        </form>
+      </section>
+
+      <section id="status-panel" class="panel muted hidden"></section>
+      <section id="loading-panel" class="panel loading-panel hidden" aria-live="polite">
+        <div class="loading-head">
+          <p id="loading-label" class="metric-label">Working</p>
+          <p id="loading-caption" class="loading-caption">Preparing agents...</p>
+        </div>
+        <div class="loading-track">
+          <div id="loading-bar" class="loading-bar"></div>
+        </div>
+      </section>
+
+      <section id="summary-panel" class="panel hidden">
+        <div class="summary-grid">
+          <div>
+            <p class="metric-label">Query used</p>
+            <p id="query-used" class="query-used"></p>
+          </div>
+          <div>
+            <p class="metric-label">Candidates</p>
+            <p id="candidate-count" class="metric-value"></p>
+          </div>
+          <div>
+            <p class="metric-label">Accepted</p>
+            <p id="accepted-count" class="metric-value"></p>
+          </div>
+        </div>
+          <div>
+            <p class="metric-label">Workflow trace</p>
+            <ul id="workflow-steps" class="workflow-steps"></ul>
+          </div>
+          <div>
+            <p class="metric-label">Sanity report</p>
+            <ul id="sanity-report" class="workflow-steps"></ul>
+          </div>
+        <div class="export-bar">
+          <div class="export-selection">
+            <label class="export-toggle">
+              <input id="select-all-papers" type="checkbox" />
+              <span>Select all visible papers</span>
+            </label>
+            <span id="selected-count" class="selected-count">0 selected</span>
+          </div>
+          <div class="export-actions">
+            <button id="export-ris-button" type="button" class="secondary-button" disabled>Export RIS</button>
+            <button id="export-xlsx-button" type="button" class="secondary-button" disabled>Export Excel</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="results-panel" class="results hidden"></section>
+      <section id="outline-panel" class="results hidden"></section>
+    </main>
+
+    <script src="/static/categories.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
