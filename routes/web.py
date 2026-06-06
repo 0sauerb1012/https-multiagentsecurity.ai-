@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.parse import quote_plus
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from services.date_utils import format_publication_date
@@ -139,6 +139,11 @@ HOME_GAP_PREVIEW = [
     {"label": "Building momentum", "value": "Trust scoring, evaluation benchmarks"},
     {"label": "Early watchlist", "value": "Agent identity, long-horizon governance"},
 ]
+
+
+@router.get("/health")
+async def health() -> JSONResponse:
+    return JSONResponse({"ok": True})
 
 BLOG_POSTS: list[dict[str, str]] = [
     {

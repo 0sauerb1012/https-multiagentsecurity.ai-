@@ -200,6 +200,19 @@ def _ensure_ingestion_runs(connection, rows: list[dict[str, object]]) -> None:
         )
 
 
+def _sync_ingestion_run_sequence(connection) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT setval(
+                pg_get_serial_sequence('ingestion_runs', 'run_id'),
+                COALESCE((SELECT MAX(run_id) FROM ingestion_runs), 1),
+                true
+            )
+            """
+        )
+
+
 def _upsert_papers(connection, rows: list[dict[str, object]]) -> None:
     statement = """
         INSERT INTO papers (
@@ -267,17 +280,23 @@ def main() -> None:
     database = DatabaseService()
     database.initialize()
     database_url = args.database_url or database.database_url
-    if not database_url:
-        raise SystemExit("DATABASE_URL is not set. Export it or pass --database-url.")
+    connect_kwargs = database._postgres_connect_kwargs() if not database_url else None
+    if not database_url and not connect_kwargs:
+        raise SystemExit(
+            "Postgres connection is not configured. Set DATABASE_URL or provide "
+            "DATABASE_HOST, DATABASE_NAME, DATABASE_USER, and DATABASE_PASSWORD."
+        )
 
     rows = _load_rows(csv_path)
     imported_at = datetime.now(timezone.utc).isoformat()
 
-    with psycopg.connect(database_url) as connection:
+    connect_args = connect_kwargs or {"conninfo": database_url}
+    with psycopg.connect(**connect_args) as connection:
         if args.clear_papers:
             with connection.cursor() as cursor:
                 cursor.execute("DELETE FROM papers")
         _ensure_ingestion_runs(connection, rows)
+        _sync_ingestion_run_sequence(connection)
         _upsert_papers(connection, rows)
         connection.commit()
 

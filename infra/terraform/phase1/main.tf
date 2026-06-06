@@ -64,7 +64,11 @@ locals {
     ) ? {
     DATABASE_PASSWORD_SECRET_ARN = aws_db_instance.postgres[0].master_user_secret[0].secret_arn
   } : {}
-  managed_database_web_secret_arn = var.managed_postgres_enabled ? aws_db_instance.postgres[0].master_user_secret[0].secret_arn : ""
+  managed_database_web_secret_arn = (
+    var.managed_postgres_enabled
+    ? "${aws_db_instance.postgres[0].master_user_secret[0].secret_arn}:password::"
+    : ""
+  )
   secret_arns = compact([
     var.managed_postgres_enabled && var.lambda_vpc_enabled ? aws_db_instance.postgres[0].master_user_secret[0].secret_arn : "",
     var.managed_postgres_enabled ? aws_db_instance.postgres[0].master_user_secret[0].secret_arn : "",
@@ -107,6 +111,50 @@ locals {
       RECONCILE_LOOKBACK_DAYS = tostring(var.reconcile_lookback_days)
     }
   )
+  incremental_scheduler_input = jsonencode({
+    containerOverrides = [
+      {
+        name = "web"
+        command = [
+          "python",
+          "-m",
+          "services.ingest",
+          "--mode",
+          "incremental",
+          "--target-limit",
+          tostring(var.incremental_target_limit),
+          "--per-topic-limit",
+          tostring(var.incremental_per_topic_limit),
+          "--overlap-days",
+          tostring(var.incremental_overlap_days),
+          "--years-back",
+          tostring(var.years_back),
+        ]
+      }
+    ]
+  })
+  reconcile_scheduler_input = jsonencode({
+    containerOverrides = [
+      {
+        name = "web"
+        command = [
+          "python",
+          "-m",
+          "services.ingest",
+          "--mode",
+          "reconcile",
+          "--target-limit",
+          tostring(var.reconcile_target_limit),
+          "--per-topic-limit",
+          tostring(var.reconcile_per_topic_limit),
+          "--reconcile-lookback-days",
+          tostring(var.reconcile_lookback_days),
+          "--years-back",
+          tostring(var.years_back),
+        ]
+      }
+    ]
+  })
 }
 
 resource "aws_route53_zone" "primary" {
@@ -758,21 +806,34 @@ resource "aws_iam_role" "scheduler" {
   assume_role_policy = data.aws_iam_policy_document.scheduler_assume.json
 }
 
-data "aws_iam_policy_document" "scheduler_invoke_lambda" {
+data "aws_iam_policy_document" "scheduler_run_ecs" {
   statement {
-    actions   = ["lambda:InvokeFunction"]
-    resources = [aws_lambda_function.ingestion.arn]
+    actions   = ["ecs:RunTask"]
+    resources = [aws_ecs_task_definition.web.arn_without_revision]
+  }
+
+  statement {
+    actions   = ["ecs:RunTask"]
+    resources = ["${aws_ecs_task_definition.web.arn_without_revision}:*"]
+  }
+
+  statement {
+    actions = ["iam:PassRole"]
+    resources = [
+      aws_iam_role.ecs_task_execution.arn,
+      aws_iam_role.ecs_task.arn,
+    ]
   }
 }
 
-resource "aws_iam_policy" "scheduler_invoke_lambda" {
-  name   = "${local.name_prefix}-scheduler-invoke-lambda"
-  policy = data.aws_iam_policy_document.scheduler_invoke_lambda.json
+resource "aws_iam_policy" "scheduler_run_ecs" {
+  name   = "${local.name_prefix}-scheduler-run-ecs"
+  policy = data.aws_iam_policy_document.scheduler_run_ecs.json
 }
 
-resource "aws_iam_role_policy_attachment" "scheduler_invoke_lambda" {
+resource "aws_iam_role_policy_attachment" "scheduler_run_ecs" {
   role       = aws_iam_role.scheduler.name
-  policy_arn = aws_iam_policy.scheduler_invoke_lambda.arn
+  policy_arn = aws_iam_policy.scheduler_run_ecs.arn
 }
 
 resource "aws_scheduler_schedule" "incremental" {
@@ -785,15 +846,22 @@ resource "aws_scheduler_schedule" "incremental" {
   }
 
   target {
-    arn      = aws_lambda_function.ingestion.arn
+    arn      = aws_ecs_cluster.web.arn
     role_arn = aws_iam_role.scheduler.arn
-    input = jsonencode({
-      mode            = "incremental"
-      target_limit    = var.incremental_target_limit
-      per_topic_limit = var.incremental_per_topic_limit
-      overlap_days    = var.incremental_overlap_days
-      years_back      = var.years_back
-    })
+    input    = local.incremental_scheduler_input
+
+    ecs_parameters {
+      task_definition_arn = aws_ecs_task_definition.web.arn
+      launch_type         = "FARGATE"
+      platform_version    = "1.4.0"
+      task_count          = 1
+
+      network_configuration {
+        assign_public_ip = true
+        security_groups  = [aws_security_group.ecs_web.id]
+        subnets          = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+      }
+    }
 
     retry_policy {
       maximum_event_age_in_seconds = 3600
@@ -812,35 +880,26 @@ resource "aws_scheduler_schedule" "reconcile" {
   }
 
   target {
-    arn      = aws_lambda_function.ingestion.arn
+    arn      = aws_ecs_cluster.web.arn
     role_arn = aws_iam_role.scheduler.arn
-    input = jsonencode({
-      mode                    = "reconcile"
-      target_limit            = var.reconcile_target_limit
-      per_topic_limit         = var.reconcile_per_topic_limit
-      reconcile_lookback_days = var.reconcile_lookback_days
-      years_back              = var.years_back
-    })
+    input    = local.reconcile_scheduler_input
+
+    ecs_parameters {
+      task_definition_arn = aws_ecs_task_definition.web.arn
+      launch_type         = "FARGATE"
+      platform_version    = "1.4.0"
+      task_count          = 1
+
+      network_configuration {
+        assign_public_ip = true
+        security_groups  = [aws_security_group.ecs_web.id]
+        subnets          = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+      }
+    }
 
     retry_policy {
       maximum_event_age_in_seconds = 3600
       maximum_retry_attempts       = 1
     }
   }
-}
-
-resource "aws_lambda_permission" "scheduler_incremental" {
-  statement_id  = "AllowIncrementalSchedulerInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.ingestion.function_name
-  principal     = "scheduler.amazonaws.com"
-  source_arn    = aws_scheduler_schedule.incremental.arn
-}
-
-resource "aws_lambda_permission" "scheduler_reconcile" {
-  statement_id  = "AllowReconcileSchedulerInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.ingestion.function_name
-  principal     = "scheduler.amazonaws.com"
-  source_arn    = aws_scheduler_schedule.reconcile.arn
 }

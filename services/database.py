@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import sqlite3
 from typing import Iterator
@@ -50,10 +51,13 @@ class DatabaseService:
     def __init__(self, db_path: str | None = None) -> None:
         self.db_path = Path(db_path or settings.database_path)
         configured_backend = settings.database_backend.strip().lower()
-        self.database_url = settings.database_url
-        if configured_backend == "sqlite" and self.database_url and self.database_url.startswith("postgres"):
+        if configured_backend == "sqlite" and (self.database_url or self._has_split_postgres_env()):
             configured_backend = "postgres"
         self.backend = configured_backend
+
+    @property
+    def database_url(self) -> str | None:
+        return os.getenv("DATABASE_URL", "").strip() or None
 
     def initialize(self) -> None:
         if self.backend == "postgres":
@@ -476,9 +480,17 @@ class DatabaseService:
         if self.backend == "postgres":
             if psycopg is None or dict_row is None:
                 raise RuntimeError("DATABASE_BACKEND=postgres requires psycopg to be installed.")
-            if not self.database_url:
-                raise RuntimeError("DATABASE_URL must be set when DATABASE_BACKEND=postgres.")
-            connection = psycopg.connect(self.database_url, row_factory=dict_row)
+            database_url = self.database_url
+            if database_url:
+                connection = psycopg.connect(database_url, row_factory=dict_row)
+            else:
+                connect_kwargs = self._postgres_connect_kwargs()
+                if not connect_kwargs:
+                    raise RuntimeError(
+                        "Postgres requires either DATABASE_URL or DATABASE_HOST, DATABASE_NAME, "
+                        "DATABASE_USER, and DATABASE_PASSWORD."
+                    )
+                connection = psycopg.connect(row_factory=dict_row, **connect_kwargs)
         else:
             connection = sqlite3.connect(self.db_path)
             connection.row_factory = sqlite3.Row
@@ -633,6 +645,30 @@ class DatabaseService:
 
     def _placeholder(self) -> str:
         return "%s" if self.backend == "postgres" else "?"
+
+    @staticmethod
+    def _has_split_postgres_env() -> bool:
+        return all(
+            os.getenv(key, "").strip()
+            for key in ("DATABASE_HOST", "DATABASE_NAME", "DATABASE_USER", "DATABASE_PASSWORD")
+        )
+
+    @staticmethod
+    def _postgres_connect_kwargs() -> dict[str, str] | None:
+        host = os.getenv("DATABASE_HOST", "").strip()
+        name = os.getenv("DATABASE_NAME", "").strip()
+        user = os.getenv("DATABASE_USER", "").strip()
+        password = os.getenv("DATABASE_PASSWORD", "")
+        if not host or not name or not user or not password:
+            return None
+        return {
+            "host": host,
+            "port": os.getenv("DATABASE_PORT", "5432").strip() or "5432",
+            "dbname": name,
+            "user": user,
+            "password": password,
+            "sslmode": os.getenv("DATABASE_SSLMODE", "require").strip() or "require",
+        }
 
     def _is_fit_true_clause(self) -> str:
         return "is_fit = TRUE" if self.backend == "postgres" else "is_fit = 1"
