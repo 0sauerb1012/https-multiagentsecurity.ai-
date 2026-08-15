@@ -5,10 +5,24 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from routes.web import router as web_router
+from services.runtime_env import hydrate_runtime_env
+
+
+hydrate_runtime_env(
+    (
+        "DATABASE_URL",
+        "OPENAI_API_KEY",
+        "OPENALEX_API_KEY",
+        "OPENALEX_EMAIL",
+        "CROSSREF_EMAIL",
+        "SEMANTIC_SCHOLAR_API_KEY",
+    )
+)
 
 
 def create_app() -> FastAPI:
+    from routes.web import router as web_router
+
     app = FastAPI(title="Multi-Agent Security Research Hub", version="0.1.0")
     app.include_router(web_router)
 

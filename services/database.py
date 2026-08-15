@@ -16,6 +16,7 @@ from api.app.models import ReviewedPaper, SourceRecord
 
 from .date_utils import clamp_future_year, has_known_publication_date, parse_publication_datetime
 from .hub_types import HeatmapRow, LibraryCategoryGroup, PaperCard
+from .runtime_env import get_secret_value
 
 try:
     import psycopg
@@ -488,7 +489,8 @@ class DatabaseService:
                 if not connect_kwargs:
                     raise RuntimeError(
                         "Postgres requires either DATABASE_URL or DATABASE_HOST, DATABASE_NAME, "
-                        "DATABASE_USER, and DATABASE_PASSWORD."
+                        "DATABASE_USER, and either DATABASE_PASSWORD or "
+                        "DATABASE_PASSWORD_SECRET_ARN."
                     )
                 connection = psycopg.connect(row_factory=dict_row, **connect_kwargs)
         else:
@@ -648,9 +650,15 @@ class DatabaseService:
 
     @staticmethod
     def _has_split_postgres_env() -> bool:
-        return all(
-            os.getenv(key, "").strip()
-            for key in ("DATABASE_HOST", "DATABASE_NAME", "DATABASE_USER", "DATABASE_PASSWORD")
+        return (
+            all(
+                os.getenv(key, "").strip()
+                for key in ("DATABASE_HOST", "DATABASE_NAME", "DATABASE_USER")
+            )
+            and bool(
+                os.getenv("DATABASE_PASSWORD", "")
+                or os.getenv("DATABASE_PASSWORD_SECRET_ARN", "").strip()
+            )
         )
 
     @staticmethod
@@ -658,7 +666,12 @@ class DatabaseService:
         host = os.getenv("DATABASE_HOST", "").strip()
         name = os.getenv("DATABASE_NAME", "").strip()
         user = os.getenv("DATABASE_USER", "").strip()
-        password = os.getenv("DATABASE_PASSWORD", "")
+        password_secret_arn = os.getenv("DATABASE_PASSWORD_SECRET_ARN", "").strip()
+        password = (
+            get_secret_value(password_secret_arn)
+            if password_secret_arn
+            else os.getenv("DATABASE_PASSWORD", "")
+        )
         if not host or not name or not user or not password:
             return None
         return {

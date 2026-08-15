@@ -53,22 +53,13 @@ locals {
     var.semantic_scholar_api_key_param_name != "" ? { SEMANTIC_SCHOLAR_API_KEY_PARAM = var.semantic_scholar_api_key_param_name } : {},
   )
   managed_database_env = var.managed_postgres_enabled ? {
-    DATABASE_HOST    = aws_db_instance.postgres[0].address
-    DATABASE_PORT    = tostring(aws_db_instance.postgres[0].port)
-    DATABASE_NAME    = var.managed_postgres_db_name
-    DATABASE_USER    = var.managed_postgres_username
-    DATABASE_SSLMODE = "require"
-  } : {}
-  managed_database_lambda_secret_env = (
-    var.managed_postgres_enabled && var.lambda_vpc_enabled
-    ) ? {
+    DATABASE_HOST                = aws_db_instance.postgres[0].address
+    DATABASE_PORT                = tostring(aws_db_instance.postgres[0].port)
+    DATABASE_NAME                = var.managed_postgres_db_name
+    DATABASE_USER                = var.managed_postgres_username
+    DATABASE_SSLMODE             = "require"
     DATABASE_PASSWORD_SECRET_ARN = aws_db_instance.postgres[0].master_user_secret[0].secret_arn
   } : {}
-  managed_database_web_secret_arn = (
-    var.managed_postgres_enabled
-    ? "${aws_db_instance.postgres[0].master_user_secret[0].secret_arn}:password::"
-    : ""
-  )
   secret_arns = compact([
     var.managed_postgres_enabled && var.lambda_vpc_enabled ? aws_db_instance.postgres[0].master_user_secret[0].secret_arn : "",
     var.managed_postgres_enabled ? aws_db_instance.postgres[0].master_user_secret[0].secret_arn : "",
@@ -85,7 +76,6 @@ locals {
   web_secrets = [
     for pair in [
       { name = "DATABASE_URL", value_from = var.managed_postgres_enabled ? "" : var.database_url_param_name },
-      { name = "DATABASE_PASSWORD", value_from = local.managed_database_web_secret_arn },
       { name = "OPENAI_API_KEY", value_from = var.openai_api_key_param_name },
       { name = "OPENALEX_API_KEY", value_from = var.openalex_api_key_param_name },
       { name = "OPENALEX_EMAIL", value_from = var.openalex_email_param_name },
@@ -101,7 +91,6 @@ locals {
     local.direct_secret_env,
     local.parameter_secret_env,
     local.managed_database_env,
-    local.managed_database_lambda_secret_env,
     {
       INGEST_MODE             = "incremental"
       TARGET_LIMIT            = tostring(var.incremental_target_limit)
@@ -557,6 +546,12 @@ resource "aws_iam_policy" "ecs_secrets" {
 resource "aws_iam_role_policy_attachment" "ecs_task_execution_secrets" {
   count      = var.managed_postgres_enabled ? 1 : 0
   role       = aws_iam_role.ecs_task_execution.name
+  policy_arn = aws_iam_policy.ecs_secrets[0].arn
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_task_secrets" {
+  count      = var.managed_postgres_enabled ? 1 : 0
+  role       = aws_iam_role.ecs_task.name
   policy_arn = aws_iam_policy.ecs_secrets[0].arn
 }
 
